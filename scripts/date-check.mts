@@ -1,8 +1,8 @@
 import { parseEntry } from "../lib/parse";
 import cats from "../data/seed/categories.json" with { type: "json" };
 
-/* Freeze the clock so the rollover rule is testable rather than
-   dependent on when the suite happens to run. */
+/* Freeze the clock so dates are testable rather than dependent on
+   when the suite happens to run. A day ends at midnight. */
 const RealDate = Date;
 function at(iso: string) {
   // @ts-expect-error swapping the global for the duration of a check

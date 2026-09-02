@@ -51,22 +51,16 @@ export function readAmount(
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** When a day ends for the person logging it, which is not midnight.
- *  Anything before this hour counts as the day before. */
-const DAY_ENDS_AT = 4;
-
-/* "Today" at 00:31 means the day that just finished, not the one that
-   started half an hour ago. Four expenses got dated a day late that
-   way, because the clock had rolled over while he was still awake. */
+/* A day ends at midnight. An earlier version rolled the small hours
+   back to the previous day, which guessed at intent; the confirmation
+   now shows the date it picked, which catches a late-night mistake
+   without inventing a rule. */
 function today(): string {
-  const d = new Date();
-  if (d.getHours() < DAY_ENDS_AT) d.setDate(d.getDate() - 1);
-  return iso(d);
+  return iso(new Date());
 }
 
 function shift(days: number): string {
   const d = new Date();
-  if (d.getHours() < DAY_ENDS_AT) d.setDate(d.getDate() - 1);
   d.setDate(d.getDate() - days);
   return iso(d);
 }
