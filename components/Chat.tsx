@@ -61,6 +61,8 @@ export function Chat({ messages }: { messages: Message[] }) {
     (current, sending: Message) => [...current, sending],
   );
 
+  const rowRef = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const pickRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -72,7 +74,7 @@ export function Chat({ messages }: { messages: Message[] }) {
 
   const { listening, supported, start, stop } = useDictation((heard) => {
     const base = beforeDictation.current;
-    setText(base ? `${base} ${heard}` : heard);
+    applyText(base ? `${base} ${heard}` : heard);
   });
 
   function toggleMic() {
@@ -105,24 +107,53 @@ export function Chat({ messages }: { messages: Message[] }) {
     el.style.height = el.scrollHeight + "px";
   }
 
-  /* Measured rather than guessed from character count, which would
-     be wrong for a long word or a narrow phone. A ResizeObserver
-     also means the state is set from its callback rather than from
-     an effect body, which would cascade renders. */
-  useEffect(() => {
-    const el = fieldRef.current;
-    if (!el) return;
-    const measure = () => {
-      const cs = getComputedStyle(el);
-      const line = parseFloat(cs.lineHeight) || 22;
-      const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-      setWrapped(el.clientHeight - pad > line * 1.5);
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    measure();
-    return () => ro.disconnect();
-  }, []);
+  /* Whether the message wraps is measured against the width the
+     field has when it is NOT wrapped, using an off-screen copy of
+     the text.
+
+     Measuring the live field instead caused a loop: at 236px the
+     text took two lines, so the field went full width, where the
+     same text is one line, so it collapsed back to 236px, where it
+     wraps again. The decision has to be independent of the layout it
+     controls, or it feeds itself. */
+  function inlineWidth(row: HTMLElement, field: HTMLElement) {
+    const cs = getComputedStyle(row);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const gap = parseFloat(cs.columnGap || cs.gap || "0") || 0;
+    let others = 0;
+    let count = 0;
+    for (const child of Array.from(row.children)) {
+      if (child === field || child === mirrorRef.current) continue;
+      others += (child as HTMLElement).offsetWidth;
+      count += 1;
+    }
+    return Math.max(row.clientWidth - padX - others - gap * count, 40);
+  }
+
+  function measureWrap(next: string) {
+    const row = rowRef.current;
+    const field = fieldRef.current;
+    const mirror = mirrorRef.current;
+    if (!row || !field || !mirror) return;
+
+    const cs = getComputedStyle(field);
+    mirror.style.width = inlineWidth(row, field) + "px";
+    mirror.style.font = cs.font;
+    mirror.style.letterSpacing = cs.letterSpacing;
+    mirror.textContent = next || "";
+
+    /* The mirror carries no padding, so its scrollHeight is pure
+       content: one line, two lines, and nothing else mixed in. */
+    const line = parseFloat(cs.lineHeight) || 22;
+    setWrapped(mirror.scrollHeight > line * 1.5);
+  }
+
+  /* One place where text changes, so typing and dictation both keep
+     the layout in step. */
+  function applyText(next: string) {
+    setText(next);
+    measureWrap(next);
+  }
 
   function take(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -149,12 +180,12 @@ export function Chat({ messages }: { messages: Message[] }) {
     // need putting back.
     const sentText = text;
     const sentFiles = files;
-    setText("");
+    applyText("");
     setFiles([]);
     if (fieldRef.current) fieldRef.current.style.height = "auto";
 
     const restore = () => {
-      setText(sentText);
+      applyText(sentText);
       setFiles(sentFiles);
     };
 
@@ -216,7 +247,7 @@ export function Chat({ messages }: { messages: Message[] }) {
         )}
       >
         {thread.length === 0 ? (
-          <Empty onPick={(t) => { setText(t); fieldRef.current?.focus(); }} />
+          <Empty onPick={(t) => { applyText(t); fieldRef.current?.focus(); }} />
         ) : (
           thread.map((m) => (
             <Bubble key={m.id} message={m} sending={m.id === PENDING_ID} />
@@ -265,11 +296,19 @@ export function Chat({ messages }: { messages: Message[] }) {
             the caret mid-word, so the order and widths change
             instead. */}
         <div
+          ref={rowRef}
           className={cn(
             "flex items-end gap-2 px-4 py-3",
             wrapped && "flex-wrap gap-y-2",
           )}
         >
+          {/* An off-screen copy of the text at the field's unwrapped
+              width. Never shown; it exists only to be measured. */}
+          <div
+            ref={mirrorRef}
+            aria-hidden="true"
+            className="pointer-events-none invisible absolute left-0 top-0 -z-10 whitespace-pre-wrap break-words p-0"
+          />
           <button
             type="button"
             onClick={() => setAttachOpen(true)}
@@ -289,7 +328,7 @@ export function Chat({ messages }: { messages: Message[] }) {
             value={text}
             rows={1}
             onChange={(e) => {
-              setText(e.target.value);
+              applyText(e.target.value);
               grow(e.target);
             }}
             onKeyDown={(e) => {
