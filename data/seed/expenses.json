@@ -1,0 +1,770 @@
+[
+  {
+    "id": "exp_0001",
+    "date": "2026-08-03",
+    "time": "11:20",
+    "label": "Barber",
+    "amount": -5000,
+    "currency": "NGN",
+    "amountNGN": -5000,
+    "categoryId": "body-care",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0002",
+    "date": "2026-08-12",
+    "time": "17:05",
+    "label": "Skincare restock",
+    "amount": -8500,
+    "currency": "NGN",
+    "amountNGN": -8500,
+    "categoryId": "body-care",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0003",
+    "date": "2026-08-24",
+    "time": "10:40",
+    "label": "Barber",
+    "amount": -5000,
+    "currency": "NGN",
+    "amountNGN": -5000,
+    "categoryId": "body-care",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0004",
+    "date": "2026-08-09",
+    "time": "09:15",
+    "label": "Car service",
+    "amount": -45000,
+    "currency": "NGN",
+    "amountNGN": -45000,
+    "categoryId": "car",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0005",
+    "date": "2026-08-09",
+    "time": "10:02",
+    "label": "Wiper blades",
+    "amount": -9000,
+    "currency": "NGN",
+    "amountNGN": -9000,
+    "categoryId": "car",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0006",
+    "date": "2026-08-16",
+    "time": "16:30",
+    "label": "Car wash",
+    "amount": -4000,
+    "currency": "NGN",
+    "amountNGN": -4000,
+    "categoryId": "car",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0007",
+    "date": "2026-08-30",
+    "time": "15:10",
+    "label": "Car wash",
+    "amount": -4000,
+    "currency": "NGN",
+    "amountNGN": -4000,
+    "categoryId": "car",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0008",
+    "date": "2026-08-02",
+    "time": "13:40",
+    "label": "Lunch, The Place",
+    "amount": -7800,
+    "currency": "NGN",
+    "amountNGN": -7800,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0009",
+    "date": "2026-08-06",
+    "time": "20:15",
+    "label": "Shawarma",
+    "amount": -4200,
+    "currency": "NGN",
+    "amountNGN": -4200,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0010",
+    "date": "2026-08-11",
+    "time": "20:50",
+    "label": "Dinner with Tolu",
+    "amount": -16500,
+    "currency": "NGN",
+    "amountNGN": -16500,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0011",
+    "date": "2026-08-15",
+    "time": "14:10",
+    "label": "Chicken Republic",
+    "amount": -5600,
+    "currency": "NGN",
+    "amountNGN": -5600,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0012",
+    "date": "2026-08-19",
+    "time": "09:30",
+    "label": "Cafe Neo",
+    "amount": -4300,
+    "currency": "NGN",
+    "amountNGN": -4300,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0013",
+    "date": "2026-08-23",
+    "time": "21:20",
+    "label": "Suya",
+    "amount": -3500,
+    "currency": "NGN",
+    "amountNGN": -3500,
+    "categoryId": "dining",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0014",
+    "date": "2026-08-27",
+    "time": "13:15",
+    "label": "Lunch, Bukka Hut",
+    "amount": -6800,
+    "currency": "NGN",
+    "amountNGN": -6800,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0015",
+    "date": "2026-08-29",
+    "time": "19:45",
+    "label": "Pizza",
+    "amount": -9700,
+    "currency": "NGN",
+    "amountNGN": -9700,
+    "categoryId": "dining",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0016",
+    "date": "2026-08-26",
+    "time": "09:40",
+    "label": "Transfer to Mum",
+    "amount": -100000,
+    "currency": "NGN",
+    "amountNGN": -100000,
+    "categoryId": "family",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0017",
+    "date": "2026-08-08",
+    "time": "12:00",
+    "label": "Aso ebi, Tolu's wedding",
+    "amount": -25000,
+    "currency": "NGN",
+    "amountNGN": -25000,
+    "categoryId": "giving",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0018",
+    "date": "2026-08-22",
+    "time": "18:20",
+    "label": "Birthday gift, Ada",
+    "amount": -10000,
+    "currency": "NGN",
+    "amountNGN": -10000,
+    "categoryId": "giving",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0019",
+    "date": "2026-08-01",
+    "time": "08:10",
+    "label": "Gym, monthly",
+    "amount": -25000,
+    "currency": "NGN",
+    "amountNGN": -25000,
+    "categoryId": "health",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0020",
+    "date": "2026-08-18",
+    "time": "18:45",
+    "label": "Malaria drugs",
+    "amount": -3200,
+    "currency": "NGN",
+    "amountNGN": -3200,
+    "categoryId": "health",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0021",
+    "date": "2026-08-04",
+    "time": "10:25",
+    "label": "Prepaid units",
+    "amount": -30000,
+    "currency": "NGN",
+    "amountNGN": -30000,
+    "categoryId": "electricity",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0022",
+    "date": "2026-08-20",
+    "time": "19:10",
+    "label": "Prepaid units",
+    "amount": -22000,
+    "currency": "NGN",
+    "amountNGN": -22000,
+    "categoryId": "electricity",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0023",
+    "date": "2026-08-05",
+    "time": "11:00",
+    "label": "Estate security levy",
+    "amount": -10000,
+    "currency": "NGN",
+    "amountNGN": -10000,
+    "categoryId": "security",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0024",
+    "date": "2026-08-01",
+    "time": "07:50",
+    "label": "MTN data",
+    "amount": -22000,
+    "currency": "NGN",
+    "amountNGN": -22000,
+    "categoryId": "internet",
+    "method": "ussd",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0025",
+    "date": "2026-08-17",
+    "time": "12:35",
+    "label": "Airtime",
+    "amount": -5000,
+    "currency": "NGN",
+    "amountNGN": -5000,
+    "categoryId": "internet",
+    "method": "ussd",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0026",
+    "date": "2026-08-28",
+    "time": "16:05",
+    "label": "Airtime",
+    "amount": -4500,
+    "currency": "NGN",
+    "amountNGN": -4500,
+    "categoryId": "internet",
+    "method": "ussd",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0027",
+    "date": "2026-08-07",
+    "time": "17:40",
+    "label": "Laundry",
+    "amount": -8000,
+    "currency": "NGN",
+    "amountNGN": -8000,
+    "categoryId": "laundry",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0028",
+    "date": "2026-08-21",
+    "time": "17:20",
+    "label": "Laundry",
+    "amount": -8000,
+    "currency": "NGN",
+    "amountNGN": -8000,
+    "categoryId": "laundry",
+    "method": "cash",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0029",
+    "date": "2026-08-10",
+    "time": "18:00",
+    "label": "Groceries, Ebeano",
+    "amount": -38000,
+    "currency": "NGN",
+    "amountNGN": -38000,
+    "categoryId": "shopping",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0030",
+    "date": "2026-08-14",
+    "time": "15:25",
+    "label": "Sneakers",
+    "amount": -32000,
+    "currency": "NGN",
+    "amountNGN": -32000,
+    "categoryId": "shopping",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0031",
+    "date": "2026-08-25",
+    "time": "17:50",
+    "label": "Groceries, Shoprite",
+    "amount": -18500,
+    "currency": "NGN",
+    "amountNGN": -18500,
+    "categoryId": "shopping",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0032",
+    "date": "2026-08-26",
+    "time": "09:45",
+    "label": "PiggyVest",
+    "amount": -200000,
+    "currency": "NGN",
+    "amountNGN": -200000,
+    "categoryId": "savings",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0033",
+    "date": "2026-08-02",
+    "time": "06:00",
+    "label": "Spotify",
+    "amount": -1300,
+    "currency": "NGN",
+    "amountNGN": -1300,
+    "categoryId": "subscriptions",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0034",
+    "date": "2026-08-13",
+    "time": "06:00",
+    "label": "Netflix",
+    "amount": -4800,
+    "currency": "NGN",
+    "amountNGN": -4800,
+    "categoryId": "subscriptions",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0035",
+    "date": "2026-08-02",
+    "time": "12:30",
+    "label": "Tithe",
+    "amount": -15000,
+    "currency": "NGN",
+    "amountNGN": -15000,
+    "categoryId": "tithes",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0036",
+    "date": "2026-08-03",
+    "time": "08:30",
+    "label": "Fuel",
+    "amount": -28000,
+    "currency": "NGN",
+    "amountNGN": -28000,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0037",
+    "date": "2026-08-11",
+    "time": "08:30",
+    "label": "Fuel",
+    "amount": -27000,
+    "currency": "NGN",
+    "amountNGN": -27000,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0038",
+    "date": "2026-08-19",
+    "time": "08:30",
+    "label": "Fuel",
+    "amount": -29000,
+    "currency": "NGN",
+    "amountNGN": -29000,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0039",
+    "date": "2026-08-27",
+    "time": "08:30",
+    "label": "Fuel",
+    "amount": -26000,
+    "currency": "NGN",
+    "amountNGN": -26000,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0040",
+    "date": "2026-08-05",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -3400,
+    "currency": "NGN",
+    "amountNGN": -3400,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0041",
+    "date": "2026-08-08",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -5200,
+    "currency": "NGN",
+    "amountNGN": -5200,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0042",
+    "date": "2026-08-12",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -2800,
+    "currency": "NGN",
+    "amountNGN": -2800,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0043",
+    "date": "2026-08-15",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -4100,
+    "currency": "NGN",
+    "amountNGN": -4100,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0044",
+    "date": "2026-08-18",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -3600,
+    "currency": "NGN",
+    "amountNGN": -3600,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0045",
+    "date": "2026-08-22",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -6200,
+    "currency": "NGN",
+    "amountNGN": -6200,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0046",
+    "date": "2026-08-24",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -2900,
+    "currency": "NGN",
+    "amountNGN": -2900,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0047",
+    "date": "2026-08-29",
+    "time": "18:00",
+    "label": "Bolt",
+    "amount": -4300,
+    "currency": "NGN",
+    "amountNGN": -4300,
+    "categoryId": "transport",
+    "method": "card",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  },
+  {
+    "id": "exp_0048",
+    "date": "2026-08-25",
+    "time": "09:02",
+    "label": "Salary",
+    "amount": 900000,
+    "currency": "NGN",
+    "amountNGN": 900000,
+    "categoryId": "income",
+    "method": "transfer",
+    "entry": {
+      "how": "sample",
+      "at": "2026-08-31T21:00:00+01:00",
+      "guessed": false
+    }
+  }
+]

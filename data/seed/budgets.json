@@ -1,0 +1,46 @@
+[
+  {
+    "month": "2026-09",
+    "income": 900000,
+    "total": 851100,
+    "caps": {
+      "body-care": 20000,
+      "car": 100000,
+      "dining": 50000,
+      "family": 100000,
+      "giving": 50000,
+      "health": 30000,
+      "electricity": 50000,
+      "security": 10000,
+      "internet": 30000,
+      "laundry": 20000,
+      "shopping": 50000,
+      "savings": 200000,
+      "subscriptions": 6100,
+      "tithes": 15000,
+      "transport": 120000
+    }
+  },
+  {
+    "month": "2026-08",
+    "income": 900000,
+    "total": 851100,
+    "caps": {
+      "body-care": 20000,
+      "car": 100000,
+      "dining": 50000,
+      "family": 100000,
+      "giving": 50000,
+      "health": 30000,
+      "electricity": 50000,
+      "security": 10000,
+      "internet": 30000,
+      "laundry": 20000,
+      "shopping": 50000,
+      "savings": 200000,
+      "subscriptions": 6100,
+      "tithes": 15000,
+      "transport": 120000
+    }
+  }
+]

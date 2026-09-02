@@ -1,0 +1,9 @@
+{
+  "wordmark": "biblo",
+  "currency": "NGN",
+  "locale": "en-NG",
+  "activeMonth": "2026-09",
+  "owner": { "name": "Femi", "initials": "F" },
+  "rates": { "USD": 1720, "GBP": 2180, "EUR": 1860 },
+  "demoMonth": "2026-08"
+}

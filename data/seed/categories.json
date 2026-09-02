@@ -1,0 +1,18 @@
+[
+  { "id": "body-care",     "name": "Body care",       "icon": "HandSoap",    "kind": "spend",  "matches": ["barber", "salon", "haircut", "soap", "cream", "skincare", "toiletries", "pharmacy", "grooming", "nails", "spa"] },
+  { "id": "car",           "name": "Car maintenance", "icon": "Wrench",      "kind": "spend",  "matches": ["mechanic", "service", "oil change", "tyre", "tire", "car wash", "panel beater", "spare part", "battery", "wiper"] },
+  { "id": "dining",        "name": "Dining out",      "icon": "ForkKnife",   "kind": "spend",  "matches": ["chicken republic", "the place", "bukka", "cafe", "suya", "restaurant", "jollof", "eatery", "lunch", "dinner", "breakfast", "shawarma", "pizza", "kfc", "dominos", "coldstone"] },
+  { "id": "family",        "name": "Family",          "icon": "HandHeart",   "kind": "spend",  "matches": ["mum", "mom", "dad", "mummy", "daddy", "parents", "home", "upkeep", "sister", "brother"] },
+  { "id": "giving",        "name": "Giving",          "icon": "Gift",        "kind": "spend",  "matches": ["gift", "aso ebi", "wedding", "birthday", "cousin", "friend", "support", "contribution", "owambe"] },
+  { "id": "health",        "name": "Health & fitness","icon": "Barbell",     "kind": "spend",  "matches": ["gym", "hospital", "clinic", "drugs", "medication", "hmo", "doctor", "test", "medplus", "healthplus", "supplement"] },
+  { "id": "electricity",   "name": "Electricity",     "icon": "Lightning",   "kind": "spend",  "group": "Housing & utilities", "matches": ["ekedc", "eko electric", "ikeja electric", "aedc", "nepa", "prepaid", "meter", "units", "light bill"] },
+  { "id": "security",      "name": "Security & service", "icon": "ShieldCheck", "kind": "spend", "group": "Housing & utilities", "matches": ["security", "service charge", "estate dues", "levy", "waste", "lawma", "gateman"] },
+  { "id": "internet",      "name": "Internet & data", "icon": "WifiHigh",    "kind": "spend",  "matches": ["mtn", "airtel", "glo", "9mobile", "spectranet", "starlink", "airtime", "recharge", "data", "wifi", "subscription renewal"] },
+  { "id": "laundry",       "name": "Laundry",         "icon": "TShirt",      "kind": "spend",  "matches": ["laundry", "dry clean", "washman", "ironing", "wash"] },
+  { "id": "shopping",      "name": "Personal shopping","icon": "ShoppingBag","kind": "spend",  "matches": ["jumia", "konga", "slot", "pointek", "nike", "zara", "clothes", "shoes", "shirt", "trouser", "store", "boutique", "market", "supermarket", "shoprite", "ebeano", "spar"] },
+  { "id": "savings",       "name": "Savings",         "icon": "PiggyBank",   "kind": "spend",  "matches": ["piggyvest", "cowrywise", "savings", "save", "risevest", "bamboo", "invest"] },
+  { "id": "subscriptions", "name": "Subscriptions & entertainment", "icon": "PlayCircle", "kind": "spend", "matches": ["netflix", "spotify", "dstv", "gotv", "showmax", "apple", "icloud", "figma", "notion", "cinema", "filmhouse", "youtube", "prime"] },
+  { "id": "tithes",        "name": "Tithes & offering","icon": "Church",     "kind": "spend",  "matches": ["tithe", "offering", "church", "seed", "first fruit", "partnership"] },
+  { "id": "transport",     "name": "Transport & fuel","icon": "GasPump",     "kind": "spend",  "matches": ["bolt", "uber", "lagride", "nnpc", "total", "ardova", "mobil", "fuel", "petrol", "diesel", "brt", "keke", "danfo", "transport", "taxi"] },
+  { "id": "income",        "name": "Income",          "icon": "Bank",        "kind": "income", "matches": ["salary", "invoice", "client", "payout", "refund", "credit", "paid me"] }
+]

@@ -1,0 +1,254 @@
+@import "tailwindcss";
+
+/* ============================================================
+   BIBLO DESIGN SYSTEM
+   Derived from the olive/cream/terracotta banded reference.
+   Every colour is OKLCH. The green family shares hue 118 so the
+   ramp has zero hue drift; bone sits warmer (104) on purpose as
+   the paper tone; ember and amber are the only two signal hues.
+   ============================================================ */
+
+@theme {
+  /* --- surfaces --------------------------------------------- */
+  --color-ink: oklch(0.204 0.017 118);        /* near-black, all body text */
+  --color-moss: oklch(0.403 0.023 118);       /* dark olive band */
+  --color-moss-deep: oklch(0.339 0.022 118);  /* pressed / recessed olive */
+  --color-sage: oklch(0.776 0.03 118);        /* page ground */
+  --color-sage-dim: oklch(0.722 0.03 118);    /* sage pressed */
+  --color-bone: oklch(0.894 0.023 104);       /* card / panel */
+  --color-bone-lift: oklch(0.931 0.02 104);   /* raised panel, sheet */
+
+  /* --- signals ----------------------------------------------- */
+  --color-ember: oklch(0.644 0.168 36.5);      /* overspend, primary action */
+  --color-ember-deep: oklch(0.579 0.156 36.5); /* ember pressed */
+  --color-amber: oklch(0.819 0.158 95.6);      /* attention, add, category focus */
+  --color-amber-deep: oklch(0.762 0.148 95.6);
+
+  /* --- hairlines --------------------------------------------- */
+  --color-rule: oklch(0.204 0.017 118 / 0.14);      /* on light bands */
+  --color-rule-invert: oklch(0.894 0.023 104 / 0.2); /* on dark bands */
+
+  /* --- type --------------------------------------------------- */
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: 3.5rem;
+  --text-display--line-height: 0.88;
+  --text-display--letter-spacing: -0.045em;
+  --text-display--font-weight: 600;
+
+  --text-headline: 2rem;
+  --text-headline--line-height: 0.95;
+  --text-headline--letter-spacing: -0.035em;
+  --text-headline--font-weight: 600;
+
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 500;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.45;
+  --text-body--letter-spacing: -0.01em;
+
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.3;
+
+  --text-label: 0.625rem;
+  --text-label--line-height: 1;
+  --text-label--letter-spacing: 0.14em;
+  --text-label--font-weight: 500;
+
+  /* --- motion -------------------------------------------------
+     Custom curves only. The CSS built-ins are too weak, and
+     ease-in is never used: it delays the first frame, which is
+     exactly the frame the user is watching.                      */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --duration-press: 140ms;
+  --duration-pop: 180ms;
+  --duration-sheet: 380ms;
+
+  /* --- geometry ------------------------------------------------
+     Bands are hard-edged. Radius exists only on circular controls
+     and the device shell, mirroring the reference.                */
+  --radius-shell: 2.25rem;
+}
+
+/* ============================================================ */
+
+* {
+  border-color: var(--color-rule);
+}
+
+html {
+  background: var(--color-sage);
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-sage);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Every figure in this app is a number you compare to another
+   number, so tabular by default rather than per-component. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Focus is visible everywhere, always, in the ember signal. */
+:focus-visible {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-amber);
+  color: var(--color-ink);
+}
+
+/* Hover effects only where a real pointer exists. On touch, a tap
+   fires :hover and leaves the element stuck in the hovered state. */
+@media (hover: hover) and (pointer: fine) {
+  .hoverable:hover {
+    background: color-mix(in oklch, currentColor 6%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion means gentler, not none. Opacity and colour
+     still carry meaning; movement is what gets removed. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- entrance keyframes -------------------------------------
+   Nothing appears from scale(0): a hairline that grows from zero
+   height reads as an artefact, so the comb starts at 8% and the
+   rows start 8px low rather than from nothing.                  */
+
+@keyframes comb-drop {
+  from {
+    transform: scaleY(0.08);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- sheet ---------------------------------------------------
+   Native <dialog>, so focus trapping, Escape and inertness come
+   from the platform rather than from hand-rolled JS. The exit is
+   faster than the entrance: the user has already decided by then. */
+
+.sheet {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 200ms var(--ease-drawer),
+    opacity 160ms ease,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+.sheet[open] {
+  transition:
+    transform var(--duration-sheet) var(--ease-drawer),
+    opacity 200ms ease,
+    display var(--duration-sheet) allow-discrete,
+    overlay var(--duration-sheet) allow-discrete;
+}
+
+.sheet:not([open]) {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@starting-style {
+  .sheet[open] {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.sheet::backdrop {
+  background: oklch(0.204 0.017 118 / 0.55);
+  transition:
+    opacity 200ms ease,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+  opacity: 1;
+}
+
+.sheet:not([open])::backdrop {
+  opacity: 0;
+}
+
+@starting-style {
+  .sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* --- the chat field ------------------------------------------
+   No box. A focused text field already shows a caret, so the
+   focus ring is redundant here and reads as a stray rectangle.
+   Every other control keeps its ring. */
+
+.chat-field:focus,
+.chat-field:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+@keyframes pulse-mic {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
