@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
    for an icon name would just let you type one that renders as a
    question mark. */
 const CHOICES = [
-  "ShoppingBag", "ForkKnife", "GasPump", "Wrench", "HandSoap", "Barbell",
+  "ShoppingBag", "ShoppingCart", "ForkKnife", "GasPump", "Wrench", "HandSoap", "Barbell",
   "Lightning", "ShieldCheck", "WifiHigh", "TShirt", "PiggyBank", "PlayCircle",
   "Church", "Gift", "HandHeart", "Bank",
 ];
