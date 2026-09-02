@@ -5,7 +5,7 @@ import { getCategories } from "@/lib/data";
 import { parseEntry } from "@/lib/parse";
 import { addExpense, addMessage, deleteExpense, saveBudget, addCategory } from "@/lib/store";
 import { Attachment } from "@/lib/schema";
-import { naira } from "@/lib/format";
+import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
 
 /* Sending a message is the only way anything gets into Biblo.
@@ -76,7 +76,7 @@ export async function sendMessage(_prev: unknown, form: FormData) {
   await addMessage({ from: "you", text, expenseId: row.id });
   await addMessage({
     from: "app",
-    text: `${naira(p.amount, { decimals: 0 })} · ${row.label} → ${category}`,
+    text: `${naira(p.amount, { decimals: 0 })} · ${row.label} → ${category} · ${dayLabel(row.date)}`,
     expenseId: row.id,
   });
 

@@ -48,15 +48,27 @@ export function readAmount(
   return { ...found.sort((a, b) => b.value - a.value)[0], found: distinct };
 }
 
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** When a day ends for the person logging it, which is not midnight.
+ *  Anything before this hour counts as the day before. */
+const DAY_ENDS_AT = 4;
+
+/* "Today" at 00:31 means the day that just finished, not the one that
+   started half an hour ago. Four expenses got dated a day late that
+   way, because the clock had rolled over while he was still awake. */
 function today(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (d.getHours() < DAY_ENDS_AT) d.setDate(d.getDate() - 1);
+  return iso(d);
 }
 
 function shift(days: number): string {
   const d = new Date();
+  if (d.getHours() < DAY_ENDS_AT) d.setDate(d.getDate() - 1);
   d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return iso(d);
 }
 
 export function readDate(text: string): { date: string; match?: string } {

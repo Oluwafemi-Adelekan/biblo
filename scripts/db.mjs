@@ -10,6 +10,7 @@
      node scripts/db.mjs reply msg_0003 "Filed 3 expenses from that receipt."
      node scripts/db.mjs done msg_0003 exp_0051
      node scripts/db.mjs fix exp_0051 '{"categoryId":"dining","label":"Lunch"}'
+     node scripts/db.mjs redate 2026-09-01 exp_0053 exp_0054
      node scripts/db.mjs month 2026-09
 */
 import { readFileSync } from "node:fs";
@@ -196,6 +197,19 @@ switch (cmd) {
     const { error } = await db.from("expenses").update(row).eq("id", id);
     if (error) die(error.message);
     console.log(`${id} corrected, check cleared`);
+    break;
+  }
+
+  /* Move rows to another day without touching anything else. `fix`
+     clears the needs-a-look flag by design; this does not, because a
+     wrong date says nothing about whether the rest was right. */
+  case "redate": {
+    const [to, ...ids] = args;
+    if (!to || ids.length === 0) die("usage: db.mjs redate <YYYY-MM-DD> <id> [id...]");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) die(`not a date: ${to}`);
+    const { error } = await db.from("expenses").update({ spent_on: to }).in("id", ids);
+    if (error) die(error.message);
+    console.log(`moved ${ids.length} row(s) to ${to}: ${ids.join(", ")}`);
     break;
   }
 
