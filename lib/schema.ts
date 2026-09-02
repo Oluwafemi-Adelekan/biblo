@@ -30,6 +30,19 @@ export const Entry = z.object({
 });
 export type Entry = z.infer<typeof Entry>;
 
+/** One line off a receipt. Kept so prices can be compared over time:
+ *  a total tells you what the shop cost, an item tells you what the
+ *  rice cost. */
+export const LineItem = z.object({
+  name: z.string(),
+  qty: z.number().default(1),
+  /** Price of one, in Naira. */
+  unit: z.number(),
+  /** qty x unit as the receipt printed it, since shops round. */
+  total: z.number(),
+});
+export type LineItem = z.infer<typeof LineItem>;
+
 export const Expense = z.object({
   id: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -43,6 +56,8 @@ export const Expense = z.object({
   categoryId: z.string(),
   method: Method.default("unknown"),
   note: z.string().optional(),
+  /** Empty for anything that was not itemised. */
+  items: z.array(LineItem).default([]),
   entry: Entry,
 });
 export type Expense = z.infer<typeof Expense>;

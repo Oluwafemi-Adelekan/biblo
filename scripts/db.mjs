@@ -10,6 +10,8 @@
      node scripts/db.mjs reply msg_0003 "Filed 3 expenses from that receipt."
      node scripts/db.mjs done msg_0003 exp_0051
      node scripts/db.mjs fix exp_0051 '{"categoryId":"dining","label":"Lunch"}'
+     node scripts/db.mjs items exp_0049 '[{"name":"Chinese Rice","qty":2,"unit":2100,"total":4200}]'
+     node scripts/db.mjs prices rice
      node scripts/db.mjs redate 2026-09-01 exp_0053 exp_0054
      node scripts/db.mjs month 2026-09
 */
@@ -123,6 +125,8 @@ switch (cmd) {
       category_id: input.categoryId,
       method: input.method ?? "unknown",
       note: input.note ?? null,
+      // Receipts get lined out so prices can be compared later.
+      items: Array.isArray(input.items) ? input.items : [],
       entry: {
         how: input.how ?? "photo",
         raw: input.raw,
@@ -210,6 +214,66 @@ switch (cmd) {
     const { error } = await db.from("expenses").update({ spent_on: to }).in("id", ids);
     if (error) die(error.message);
     console.log(`moved ${ids.length} row(s) to ${to}: ${ids.join(", ")}`);
+    break;
+  }
+
+  /* Attach or replace a receipt's line items. */
+  case "items": {
+    const [id, json] = args;
+    if (!id || !json) die(`usage: db.mjs items <exp_id> '[{"name":"Rice","qty":2,"unit":2100,"total":4200}]'`);
+    const items = JSON.parse(json);
+    if (!Array.isArray(items)) die("items must be an array");
+    for (const it of items) {
+      for (const f of ["name", "unit", "total"])
+        if (it[f] === undefined) die(`each item needs "${f}"`);
+      if (it.qty === undefined) it.qty = 1;
+    }
+
+    const { data: row, error: readErr } = await db
+      .from("expenses").select("amount_ngn").eq("id", id).single();
+    if (readErr) die(readErr.message);
+
+    const sum = items.reduce((a, i) => a + Number(i.total), 0);
+    const total = Math.abs(Number(row.amount_ngn));
+    // Not fatal: service charges and rounding are real. Just say so.
+    if (Math.abs(sum - total) > 0.5)
+      console.log(`note: items sum to ${sum.toLocaleString()}, the expense is ${total.toLocaleString()}`);
+
+    const { error } = await db.from("expenses").update({ items }).eq("id", id);
+    if (error) die(error.message);
+    console.log(`${id}: ${items.length} item(s) attached`);
+    break;
+  }
+
+  /* What has this thing cost over time. */
+  case "prices": {
+    const q = (args[0] ?? "").toLowerCase();
+    if (!q) die("usage: db.mjs prices <part of an item name>");
+    const { data } = await db
+      .from("expenses").select("*").neq("items", "[]").order("spent_on");
+
+    const hits = [];
+    for (const e of data ?? [])
+      for (const it of e.items ?? [])
+        if (String(it.name).toLowerCase().includes(q))
+          hits.push({ date: e.spent_on, where: e.label, ...it });
+
+    if (hits.length === 0) {
+      console.log(`nothing matching "${q}"`);
+      break;
+    }
+    console.log(`"${q}" - ${hits.length} time(s)
+`);
+    for (const h of hits)
+      console.log(
+        `  ${h.date}  ${String(h.name).slice(0, 28).padEnd(30)} ` +
+          `${String(h.qty).padStart(3)} x ${String(h.unit).padStart(9)} = ${String(h.total).padStart(9)}   ${h.where}`,
+      );
+    const units = hits.map((h) => Number(h.unit));
+    const lo = Math.min(...units), hi = Math.max(...units);
+    if (hi !== lo)
+      console.log(`
+  unit price ${lo.toLocaleString()} to ${hi.toLocaleString()}, ${(((hi - lo) / lo) * 100).toFixed(0)}% apart`);
     break;
   }
 

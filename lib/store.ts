@@ -8,7 +8,7 @@ import {
   toExpense,
   toMessage,
 } from "./supabase";
-import type { Attachment, Category, Expense, Message } from "./schema";
+import type { Attachment, Category, Expense, LineItem, Message } from "./schema";
 
 /* ============================================================
    WRITES. All of them, in one place.
@@ -50,6 +50,7 @@ export async function addExpense(input: {
   raw?: string;
   guessed: boolean;
   check?: string;
+  items?: LineItem[];
 }): Promise<Expense> {
   const row: Expense = {
     id: await nextId("expenses", "exp"),
@@ -62,6 +63,7 @@ export async function addExpense(input: {
     categoryId: input.categoryId,
     method: "unknown",
     note: input.note,
+    items: input.items ?? [],
     entry: {
       how: "typed",
       raw: input.raw,

@@ -5,6 +5,7 @@ import type {
   Budget,
   Category,
   Expense,
+  LineItem,
   Message,
 } from "./schema";
 
@@ -63,6 +64,7 @@ type ExpenseRow = {
   category_id: string;
   method: string;
   note: string | null;
+  items: LineItem[] | null;
   entry: Expense["entry"];
 };
 
@@ -79,6 +81,7 @@ export const toExpense = (r: ExpenseRow): Expense => ({
   categoryId: r.category_id,
   method: r.method as Expense["method"],
   note: r.note ?? undefined,
+  items: r.items ?? [],
   entry: r.entry,
 });
 
@@ -93,6 +96,7 @@ export const fromExpense = (e: Expense) => ({
   category_id: e.categoryId,
   method: e.method,
   note: e.note ?? null,
+  items: e.items ?? [],
   entry: e.entry,
 });
 

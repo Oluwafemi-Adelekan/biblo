@@ -17,6 +17,8 @@ npm run pending                     # everything waiting on you
 node scripts/db.mjs month 2026-09   # totals, caps, what is over
 node scripts/db.mjs file <key> out.png
 node scripts/db.mjs add '{"date":"2026-09-02","label":"Fuel","amount":5000,"categoryId":"transport"}'
+node scripts/db.mjs items exp_0049 '[{"name":"Chinese Rice","qty":2,"unit":2100,"total":4200}]'
+node scripts/db.mjs prices rice          # what it has cost over time
 node scripts/db.mjs fix exp_0051 '{"categoryId":"dining","amount":12000}'
 node scripts/db.mjs done msg_0003 exp_0051
 node scripts/db.mjs reply msg_0003 "Filed 3 expenses from that receipt."
@@ -35,10 +37,23 @@ Read `lib/schema.ts` before your first write of a session. It is the contract.
    `matches` column in `categories`. One message can produce many expenses —
    a statement usually does.
 4. `db.mjs add` for each expense.
-5. `db.mjs done <msg_id> [expense_id]` to take it off the pending list.
-6. **`db.mjs reply <msg_id> "..."`.** This is the only thing he sees. Say what
+5. **Line out every receipt that lists items.** `db.mjs items <id>` with
+   one entry per line on the slip: `name`, `qty`, `unit`, `total`. This is
+   not optional for an itemised receipt — Femi checks what individual
+   things cost over time, and a lump total cannot answer that.
+   - Copy the item names as printed. "ALFA KETCHUP 340G" stays
+     "Alfa Ketchup 340g", not "ketchup": the size is part of the price.
+   - `unit` is the price of one, `total` is what the receipt charged for
+     the line. Where they disagree, the receipt wins.
+   - The command warns if the lines do not reach the expense total.
+     That is often correct — service charge, delivery, rounding — so
+     read it rather than forcing the numbers to match.
+   - The expense itself keeps the amount actually paid. Items explain
+     it, they do not replace it.
+6. `db.mjs done <msg_id> [expense_id]` to take it off the pending list.
+7. **`db.mjs reply <msg_id> "..."`.** This is the only thing he sees. Say what
    you filed and anything you were unsure about, in a line or two. No preamble.
-7. `npm run check` afterwards.
+8. `npm run check` afterwards.
 
 ## Fixing flagged expenses
 
@@ -46,6 +61,13 @@ Rows with `entry.check` set are ones the app saved but was unsure about.
 `db.mjs fix` corrects the row and clears the flag in one step. Leave
 `entry.guessed` alone: it records how the row arrived, not whether it is
 right now.
+
+## Prices over time
+
+`db.mjs prices <name>` searches every line item and shows what a thing
+has cost each time it was bought, with the spread between cheapest and
+dearest. Use it when he asks whether something has gone up, and when a
+receipt makes you suspect it has.
 
 ## Reading amounts
 
