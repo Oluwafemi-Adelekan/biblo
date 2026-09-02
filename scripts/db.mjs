@@ -284,18 +284,18 @@ switch (cmd) {
     const { data } = await db
       .from("expenses")
       .select("*")
-      .eq("entry->>ai", "true")
+      .or("entry->>ai.eq.true,entry->>aiEdited.eq.true")
       .order("id", { ascending: false })
       .limit(limit);
     if (!data?.length) {
-      console.log("the reader has not filed anything yet");
+      console.log("the assistant has not touched anything yet");
       break;
     }
-    console.log(`last ${data.length} filed by the reader:`);
+    console.log(`last ${data.length} the assistant filed or edited:`);
     for (const e of data)
       console.log(
-        `  ${e.id}  ${e.spent_on}  ${String(e.amount_ngn).padStart(9)}  ` +
-          `${e.category_id.padEnd(14)} ${e.label}` +
+        `  ${e.id}  ${e.entry?.ai ? "filed " : "edited"}  ${e.spent_on}  ` +
+          `${String(e.amount_ngn).padStart(9)}  ${e.category_id.padEnd(14)} ${e.label}` +
           ((e.items?.length ?? 0) > 0 ? `  (${e.items.length} items)` : ""),
       );
     break;

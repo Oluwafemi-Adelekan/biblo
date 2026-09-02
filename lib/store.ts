@@ -86,6 +86,44 @@ export async function addExpense(input: {
   return toExpense(data);
 }
 
+/** A field-whitelisted update, used by the assistant when Femi asks
+ *  for a change in the chat. Amounts keep the direction the row
+ *  already had, and the row is marked aiEdited for the audit. */
+export async function editExpense(
+  id: string,
+  set: {
+    date?: string;
+    time?: string;
+    label?: string;
+    amount?: number;
+    categoryId?: string;
+    note?: string;
+  },
+) {
+  const { data: current, error: readErr } = await db()
+    .from("expenses")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (readErr) boom(`find ${id}`, readErr);
+
+  const patch: Record<string, unknown> = {};
+  if (set.date) patch.spent_on = set.date;
+  if (set.time) patch.spent_at = set.time;
+  if (set.label) patch.label = set.label;
+  if (set.note !== undefined) patch.note = set.note;
+  if (set.categoryId) patch.category_id = set.categoryId;
+  if (set.amount !== undefined) {
+    const dir = Number(current.amount_ngn) >= 0 ? 1 : -1;
+    patch.amount = dir * Math.abs(set.amount);
+    patch.amount_ngn = dir * Math.abs(set.amount);
+  }
+  patch.entry = { ...current.entry, aiEdited: true };
+
+  const { error } = await db().from("expenses").update(patch).eq("id", id);
+  if (error) boom(`edit ${id}`, error);
+}
+
 export async function deleteExpense(id: string) {
   const { error } = await db().from("expenses").delete().eq("id", id);
   if (error) boom("delete that expense", error);

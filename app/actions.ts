@@ -155,19 +155,30 @@ async function processWithReader(messageId: string) {
           (r) =>
             `${r.category.name}: ${r.total.toLocaleString()} of ${r.cap.toLocaleString()}${r.over ? " OVER" : ""}`,
         ),
-      recentLines: (await (await import("@/lib/data")).getExpenses())
-        .slice(0, 15)
+      recentLines: [] as string[],
+      /* The last few turns, so "move that one" means something. */
+      threadLines: messages
+        .slice(-9, -1)
         .map(
-          (e) =>
-            `${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`,
+          (x) =>
+            `${x.from === "you" ? "you" : "assistant"}: ${(x.text ?? "(files)").slice(0, 160)}`,
         ),
     };
+    const allExpenses = await (await import("@/lib/data")).getExpenses();
+    context.recentLines = allExpenses
+      .slice(0, 25)
+      .map(
+        (e) =>
+          `${e.id} ${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`,
+      );
+    const validIds = new Set(allExpenses.map((e) => e.id));
 
     const reading = await readWithAI({
       text: msg.text,
       images,
       categories: cats,
       context,
+      validIds,
     });
 
     // Pure conversation: reply and close it out; nothing for Claude.
@@ -179,19 +190,25 @@ async function processWithReader(messageId: string) {
     }
 
     if (reading.kind === "defer") {
-      // He sees the assistant's own words; the terse reason waits in
-      // the pending queue for Claude.
+      /* Femi hears the assistant's own words - one voice, no handoff
+         narration. The terse reason waits in the queue behind the
+         curtain, where Claude works. */
       await addMessage({
         from: "ai",
-        text:
-          reading.reply ??
-          "I'll leave that one for Claude - it needs a hand I don't have.",
+        text: reading.reply ?? "I'll sort that out in a bit.",
       });
       revalidatePath("/", "layout");
       return;
     }
 
+    /* Edits first: "move that to giving" should not lose to a new
+       row filed in the same breath. */
+    const { editExpense } = await import("@/lib/store");
     let firstId: string | undefined;
+    for (const ed of reading.edits) {
+      await editExpense(ed.id, ed.set);
+      firstId ??= ed.id;
+    }
     for (const e of reading.expenses) {
       const row = await addExpense({
         date: e.date,

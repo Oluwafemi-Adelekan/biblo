@@ -25,9 +25,12 @@ export const Entry = z.object({
   at: z.string(),
   /** The app matched the category by keyword rather than being told. */
   guessed: z.boolean().default(false),
-  /** Filed by the resident OpenAI reader rather than by Femi or
+  /** Filed by the resident OpenAI assistant rather than by Femi or
    *  Claude. What Claude audits. */
   ai: z.boolean().optional(),
+  /** Later changed by the assistant on Femi's instruction. Audited
+   *  the same way. */
+  aiEdited: z.boolean().optional(),
   /** Set only when something needs a human. The text is shown as-is. */
   check: z.string().optional(),
 });

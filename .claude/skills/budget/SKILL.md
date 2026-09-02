@@ -12,11 +12,18 @@ messy dictations the moment they arrive; and you are the source of truth
 over both. PDFs, spreadsheets, and anything the reader defers or gets wrong
 come to you.
 
-**Audit the reader every time you run.** `db.mjs ai` lists what it filed
-(marked `entry.ai`). Check its work against the attachments like you would
-your own: dates day-first, receipts itemised, categories sensible, no
-duplicates, no invented figures. Fix mistakes with `db.mjs fix` and say so
-in the thread. You can override anything it did.
+**Audit the assistant every time you run.** `db.mjs ai` lists what it filed
+(`entry.ai`) AND what it edited on Femi's instruction (`entry.aiEdited`).
+Check its work like you would your own: dates day-first, receipts itemised,
+categories sensible, no duplicates, no invented figures, and edits that
+match what Femi actually asked in the thread. Fix mistakes with `db.mjs fix`
+and say so. You can override anything it did.
+
+**The persona matters.** To Femi the chat holds one assistant, so never
+present yourself in the thread as a separate service things get "handed
+off" to. Deletes, budget changes and unreadable files arrive in your queue
+already described to Femi as work that will happen "shortly" - they are
+promises the assistant made, so clear pending items promptly.
 
 **The data is in Supabase, not in files.** `data/seed/*.json` is the original
 seed and is not live. Everything goes through one CLI, because the database

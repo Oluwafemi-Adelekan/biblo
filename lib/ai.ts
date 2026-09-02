@@ -6,13 +6,15 @@ import type { Category, Expense, LineItem } from "./schema";
    The resident assistant.
 
    An OpenAI model on Azure that lives in the chat. It files
-   receipts and dictated expenses the moment they arrive, answers
-   questions about the month with real figures, and holds a normal
-   conversation - it is not a form with a personality bolted on.
+   receipts and dictated expenses, edits entries when Femi asks,
+   answers questions about the month with real figures, and holds
+   a normal conversation.
 
-   Claude stays the source of truth: rows the model files are
-   marked ai:true for audit, anything needing an edit to existing
-   data is deferred to Claude, and every failure path leaves the
+   To Femi there is one assistant. The model is told nothing about
+   the machinery behind it; work beyond its tools happens
+   "shortly", which in practice is Claude's queue. Claude audits
+   everything the model files or edits (entry.ai / entry.aiEdited)
+   and can override any of it. Every failure path leaves the
    message pending, which is the Claude path.
    ============================================================ */
 
@@ -42,18 +44,44 @@ const AiExpense = z.object({
   items: z.array(AiItem).max(50).default([]),
 });
 
-/* file  - money happened, here are the rows
-   chat  - conversation; nothing to write
-   defer - needs Claude (an edit, or money it could not read safely) */
+/* A change to an entry that already exists. The id must come from
+   the list the model was shown; nothing else is editable. */
+const AiEdit = z
+  .object({
+    id: z.string().regex(/^exp_\d{3,}$/),
+    set: z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        label: z.string().min(1).max(80).optional(),
+        amount: z.number().positive().optional(),
+        categoryId: z.string().optional(),
+        note: z.string().max(300).optional(),
+      })
+      .refine((s) => Object.keys(s).length > 0, "empty edit"),
+  })
+  .strict();
+
+/* file  - it wrote something: new expenses, edits, or both
+   chat  - conversation; nothing written
+   defer - background work (in truth: Claude's queue) */
 const AiResult = z.object({
   verdict: z.enum(["file", "chat", "defer"]),
   reason: z.string().optional(),
   expenses: z.array(AiExpense).max(20).default([]),
+  edits: z.array(AiEdit).max(10).default([]),
   reply: z.string().min(1).max(900),
 });
 
+export type AiEditT = z.infer<typeof AiEdit>;
+
 export type AiReading =
-  | { kind: "filed"; expenses: z.infer<typeof AiExpense>[]; reply: string }
+  | {
+      kind: "filed";
+      expenses: z.infer<typeof AiExpense>[];
+      edits: AiEditT[];
+      reply: string;
+    }
   | { kind: "chat"; reply: string }
   | { kind: "defer"; reason: string; reply?: string };
 
@@ -65,29 +93,34 @@ export type MonthContext = {
   earned: number;
   categoryLines: string[];
   recentLines: string[];
+  threadLines: string[];
 };
 
 function prompt(categories: Category[], ctx: MonthContext, today: string) {
   const cats = categories.map((c) => `- ${c.id} (${c.name}, ${c.kind})`).join("\n");
 
-  return `You are the assistant inside Biblo, a personal budgeting app built by Femi in Lagos, Nigeria. You live in its chat. Femi is the only user. He talks to you the way he would talk to a person, and you answer the same way.
+  return `You are the assistant inside Biblo, a personal budgeting app built by Femi in Lagos, Nigeria. You live in its chat. Femi is the only user, and as far as this chat is concerned there are exactly two of you: Femi and you. Never mention other assistants, agents, models, or systems. Never hand work off to anyone by name. Work you cannot do this second, you do "shortly" - it goes to your own background queue and gets done. Do not explain the machinery.
 
 Today is ${today} (Africa/Lagos). Amounts are naira.
 
 WHO YOU ARE
-Plain-spoken, warm, quick. Short sentences. No emoji, no exclamation marks, no corporate filler, never "As an AI". You can talk about anything he brings up - you are not restricted to money talk. When the conversation touches his spending, use the real figures below rather than generalities.
+Plain-spoken, warm, quick. Short sentences. No emoji, no exclamation marks, no corporate filler, never "As an AI". Talk about whatever he brings up - you are his assistant, not a form. When money comes up, use the real figures below, never generalities.
 
 WHAT YOU CAN DO
-1. Converse (verdict "chat"). Questions, thinking out loud, banter, advice.
-2. File money that happened (verdict "file"): receipts, bank screenshots, dictated spending, money received. One message can hold several expenses; file each.
-3. Hand things to Claude (verdict "defer"): edits to entries that already exist, budget or category changes, deleting things, PDFs or spreadsheets, or money you cannot read with confidence. Claude is the senior partner who audits everything you file and handles what you cannot. Deferring is normal, not failure - say naturally that Claude will pick it up.
+1. Converse (verdict "chat"). Questions, thinking out loud, advice. If a request is ambiguous - you cannot tell which entry he means, or what he wants changed - ask him, as "chat", rather than guessing.
+2. File money that happened (verdict "file", expenses[]): receipts, bank screenshots, dictated spending, money received. One message can hold several; file each.
+3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means.
+4. Everything else you do shortly (verdict "defer"): deleting entries, changing budgets, caps or categories, PDFs and spreadsheets, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability.
 
 HIS MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
 ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
-RECENTLY FILED (newest first - also your duplicate check)
+RECENTLY FILED (newest first; these ids are the only ones you may edit)
 ${ctx.recentLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
+
+THE CONVERSATION SO FAR (oldest first; "you" is Femi, "assistant" is you)
+${ctx.threadLines.map((l) => `- ${l}`).join("\n") || "- just starting"}
 
 CATEGORIES (use the id, never the name)
 ${cats}
@@ -95,15 +128,15 @@ ${cats}
 FILING RULES
 - Never invent an expense, an amount, or a date. Unreadable figure: defer.
 - "5k" is 5,000. "1.5k" is 1,500. "2m" is 2,000,000. "$5,000 Naira" dictated means 5,000 naira.
-- Nigerian dates are day-first: 03/04 is 3 April. Cross-check against context; if ambiguous and it matters, defer.
+- Nigerian dates are day-first: 03/04 is 3 April. If ambiguous and it matters, defer.
 - No date mentioned means today; "yesterday" means the day before.
 - amount is always positive; the category's kind carries direction. Money received goes to an income category.
-- Receipts that list items MUST be itemised: names as printed (keep sizes - "340g" is part of the price), qty, unit, line total. The expense amount is what was paid.
+- Receipts that list items MUST be itemised: names as printed (keep sizes - "340g" is part of the price), qty, unit, line total.
 - Labels are short names, not sentences.
-- If it matches something recently filed (same amount, day, place), defer and say it looks already recorded.
+- If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
 Respond with ONLY a JSON object, no markdown fences:
-{"verdict":"file"|"chat"|"defer","reason":"for Claude, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"reply":"what Femi sees"}`;
+{"verdict":"file"|"chat"|"defer","reason":"background note, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving"}}],"reply":"what Femi sees"}`;
 }
 
 export async function readWithAI(input: {
@@ -111,6 +144,8 @@ export async function readWithAI(input: {
   images: { type: string; base64: string }[];
   categories: Category[];
   context: MonthContext;
+  /** Every expense id that exists; edits outside this set are refused. */
+  validIds: Set<string>;
 }): Promise<AiReading> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
@@ -163,7 +198,10 @@ export async function readWithAI(input: {
     return { kind: "chat", reply: parsed.reply };
   }
 
-  if (parsed.verdict === "defer" || parsed.expenses.length === 0) {
+  if (
+    parsed.verdict === "defer" ||
+    (parsed.expenses.length === 0 && parsed.edits.length === 0)
+  ) {
     return {
       kind: "defer",
       reason: parsed.reason || "The assistant was not sure.",
@@ -176,13 +214,34 @@ export async function readWithAI(input: {
     if (!known.has(e.categoryId)) {
       return {
         kind: "defer",
-        reason: `The assistant used an unknown category "${e.categoryId}".`,
+        reason: `Unknown category "${e.categoryId}" on a new expense.`,
+        reply: parsed.reply,
+      };
+    }
+  }
+  for (const ed of parsed.edits) {
+    if (!input.validIds.has(ed.id)) {
+      return {
+        kind: "defer",
+        reason: `Tried to edit "${ed.id}", which does not exist.`,
+        reply: parsed.reply,
+      };
+    }
+    if (ed.set.categoryId && !known.has(ed.set.categoryId)) {
+      return {
+        kind: "defer",
+        reason: `Unknown category "${ed.set.categoryId}" on an edit.`,
         reply: parsed.reply,
       };
     }
   }
 
-  return { kind: "filed", expenses: parsed.expenses, reply: parsed.reply };
+  return {
+    kind: "filed",
+    expenses: parsed.expenses,
+    edits: parsed.edits,
+    reply: parsed.reply,
+  };
 }
 
 export type { LineItem, Expense };
