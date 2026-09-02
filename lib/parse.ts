@@ -25,7 +25,9 @@ const AMOUNT =
   /(?:₦|NGN|N)?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|m)?\b/gi;
 
 /** "5k" -> 5000, "1.5k" -> 1500, "2,000" -> 2000, "₦3500" -> 3500 */
-export function readAmount(text: string): { value: number; match: string } | null {
+export function readAmount(
+  text: string,
+): { value: number; match: string; found: number } | null {
   const found: { value: number; match: string }[] = [];
   for (const m of text.matchAll(AMOUNT)) {
     const raw = m[1].replace(/,/g, "");
@@ -40,8 +42,10 @@ export function readAmount(text: string): { value: number; match: string } | nul
   }
   if (found.length === 0) return null;
   // The biggest figure in the line is the one being spent; smaller ones
-  // are usually quantities or times.
-  return found.sort((a, b) => b.value - a.value)[0];
+  // are usually quantities or times. `found` carries how many there
+  // were, because more than one usually means more than one expense.
+  const distinct = new Set(found.map((f) => f.value)).size;
+  return { ...found.sort((a, b) => b.value - a.value)[0], found: distinct };
 }
 
 function today(): string {
@@ -104,13 +108,23 @@ export function parseEntry(text: string, categories: Category[]): Parsed {
       .trim();
   }
   label = label ? label[0].toUpperCase() + label.slice(1) : "Unlabelled";
+  // A label names the thing in a list; it is not a transcript. Long
+  // dictation used to land whole paragraphs in the expense list.
+  if (label.length > 60) label = label.slice(0, 57).trimEnd() + "...";
+
+  /* Several amounts in one message almost always means several
+     expenses, and picking the biggest would file one wrong row and
+     throw the rest away. That is exactly what happened to a dictated
+     message holding four. Hand the whole thing to Claude instead. */
+  const many = (amount?.found ?? 0) > 1;
 
   const checks: string[] = [];
   if (!amount) checks.push("No amount found in what you typed.");
+  else if (many) checks.push("More than one amount in that.");
   if (!cat) checks.push("Could not tell which category this belongs to.");
 
   return {
-    amount: amount?.value ?? null,
+    amount: many ? null : (amount?.value ?? null),
     categoryId: cat?.id ?? null,
     guessed: Boolean(cat),
     date: when.date,

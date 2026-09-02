@@ -52,8 +52,9 @@ export async function sendMessage(_prev: unknown, form: FormData) {
     await addMessage({ from: "you", text, status: "pending" });
     await addMessage({
       from: "app",
-      text:
-        p.amount === null
+      text: p.check?.startsWith("More than one amount")
+        ? "There's more than one expense in that, so I've left the whole thing for Claude rather than guess at one of them."
+        : p.amount === null
           ? "I couldn't find an amount in that, so I've left it for Claude."
           : "I couldn't tell which category that belongs to, so I've left it for Claude.",
     });

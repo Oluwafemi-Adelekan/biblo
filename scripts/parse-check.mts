@@ -15,6 +15,9 @@ const cases = [
   "bought 2 bottles of water",
   "paid mum 100k",
   "laundry",
+  // the real dictated message that got filed as one wrong row
+  "paid 9288 for my friends meal and 10,000 for generator fuel",
+  "5k fuel and 2k lunch",
 ];
 for (const t of cases) {
   const r = parseEntry(t, C);

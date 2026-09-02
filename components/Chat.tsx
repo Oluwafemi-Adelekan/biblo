@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useOptimistic,
   useRef,
   useState,
   useSyncExternalStore,
@@ -37,6 +38,9 @@ import { cn } from "@/lib/cn";
 
 type Pending = { file: File; url?: string; error?: string };
 
+/** The id the in-flight copy of your message carries. */
+const PENDING_ID = "__sending__";
+
 export function Chat({ messages }: { messages: Message[] }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
@@ -45,18 +49,46 @@ export function Chat({ messages }: { messages: Message[] }) {
 
   const [attachOpen, setAttachOpen] = useState(false);
 
+  /* Your message shows the instant you send it, greyed, rather than
+     vanishing into an empty composer while a photo uploads. React
+     drops it again once the real one arrives from the server. */
+  const [thread, showSending] = useOptimistic(
+    messages,
+    (current, sending: Message) => [...current, sending],
+  );
+
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const pickRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const { listening, supported, toggle } = useDictation((heard) =>
-    setText((t) => (t ? `${t.trim()} ${heard}` : heard)),
-  );
+  /* What was in the box when recording started. The transcript is
+     appended to it live, so dictating never eats what you typed. */
+  const beforeDictation = useRef("");
+
+  const { listening, supported, start, stop } = useDictation((heard) => {
+    const base = beforeDictation.current;
+    setText(base ? `${base} ${heard}` : heard);
+  });
+
+  function toggleMic() {
+    if (listening) {
+      stop();
+      return;
+    }
+    beforeDictation.current = text.trim();
+    start();
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [thread.length]);
+
+  /* Dictation sets the text without going through onChange, so the
+     box would not grow to fit a long transcript without this. */
+  useEffect(() => {
+    if (fieldRef.current) grow(fieldRef.current);
+  }, [text]);
 
   function grow(el: HTMLTextAreaElement) {
     el.style.height = "auto";
@@ -98,6 +130,20 @@ export function Chat({ messages }: { messages: Message[] }) {
     };
 
     startSending(async () => {
+      showSending({
+        id: PENDING_ID,
+        at: new Date().toISOString(),
+        from: "you",
+        text: sentText || undefined,
+        attachments: sentFiles.map((f) => ({
+          name: f.file.name,
+          type: f.file.type,
+          size: f.file.size,
+          url: "",
+        })),
+        status: "pending",
+      });
+
       try {
         let uploaded: Attachment[] = [];
         if (sentFiles.length > 0) {
@@ -137,13 +183,15 @@ export function Chat({ messages }: { messages: Message[] }) {
       <div
         className={cn(
           "flex flex-1 flex-col space-y-3 px-4 py-5",
-          messages.length === 0 ? "justify-center" : "justify-end",
+          thread.length === 0 ? "justify-center" : "justify-end",
         )}
       >
-        {messages.length === 0 ? (
+        {thread.length === 0 ? (
           <Empty onPick={(t) => { setText(t); fieldRef.current?.focus(); }} />
         ) : (
-          messages.map((m) => <Bubble key={m.id} message={m} />)
+          thread.map((m) => (
+            <Bubble key={m.id} message={m} sending={m.id === PENDING_ID} />
+          ))
         )}
         <div ref={endRef} />
       </div>
@@ -219,7 +267,7 @@ export function Chat({ messages }: { messages: Message[] }) {
           {supported ? (
             <button
               type="button"
-              onClick={toggle}
+              onClick={toggleMic}
               aria-label={listening ? "Stop dictating" : "Dictate"}
               aria-pressed={listening}
               className={cn(
@@ -367,7 +415,13 @@ function AttachOption({
 
 /* --- one message ---------------------------------------------- */
 
-function Bubble({ message: m }: { message: Message }) {
+function Bubble({
+  message: m,
+  sending = false,
+}: {
+  message: Message;
+  sending?: boolean;
+}) {
   const mine = m.from === "you";
   const fromClaude = m.from === "claude";
 
@@ -376,6 +430,9 @@ function Bubble({ message: m }: { message: Message }) {
       className={cn(
         "flex flex-col motion-safe:animate-[rise_260ms_var(--ease-out-strong)]",
         mine ? "items-end" : "items-start",
+        // Dimmed until the server has it, so "sent" and "sending"
+        // never look the same.
+        sending && "opacity-55",
       )}
     >
       <div
@@ -424,15 +481,25 @@ function Bubble({ message: m }: { message: Message }) {
       </div>
 
       <span className="mt-1 flex items-center gap-1.5 px-0.5 text-label uppercase text-ink/40">
-        {fromClaude ? "Claude · " : ""}
+        {sending ? (
+          <>
+            <span className="size-1.5 animate-[pulse-mic_1.1s_ease-in-out_infinite] rounded-full bg-ink/50" />
+            {m.attachments.length > 0
+              ? `Sending ${m.attachments.length} ${m.attachments.length === 1 ? "file" : "files"}`
+              : "Sending"}
+          </>
+        ) : null}
+        {sending ? null : fromClaude ? "Claude · " : ""}
         {/* en-NG is a 24h locale, so midnight reads as "0:21" without
             this. Nobody writes the time that way. */}
-        {new Date(m.at).toLocaleTimeString("en-NG", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        })}
-        {mine && m.status === "pending" ? " · waiting" : ""}
+        {sending
+          ? null
+          : new Date(m.at).toLocaleTimeString("en-NG", {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            })}
+        {!sending && mine && m.status === "pending" ? " · waiting" : ""}
         {m.expenseId && !mine ? (
           <Link
             href={`/expenses/${m.expenseId}`}
@@ -493,10 +560,14 @@ type SpeechRecognitionLike = {
   onerror: (() => void) | null;
 };
 
-function useDictation(onHeard: (text: string) => void) {
+function useDictation(onTranscript: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const ref = useRef<SpeechRecognitionLike | null>(null);
-  const cb = useRef(onHeard);
+  const cb = useRef(onTranscript);
+  /** Everything finalised since the button was pressed. */
+  const settled = useRef("");
+  /** What the user wants, as opposed to what the engine is doing. */
+  const wanted = useRef(false);
 
   /* Whether the browser can do this is a fixed fact about the
      browser, not state that changes, so it is read through
@@ -520,40 +591,74 @@ function useDictation(onHeard: (text: string) => void) {
     if (!Ctor) return null;
 
     const r = new Ctor();
-    r.continuous = false;
-    r.interimResults = false;
+    // Keep listening through pauses, and show words as they land
+    // rather than only at the end of a sentence.
+    r.continuous = true;
+    r.interimResults = true;
     r.lang = "en-NG";
+
     r.onresult = (e) => {
-      let heard = "";
+      let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) heard += e.results[i][0].transcript;
+        const chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) settled.current += chunk;
+        else interim += chunk;
       }
-      if (heard.trim()) cb.current(heard.trim());
+      cb.current((settled.current + interim).replace(/\s+/g, " ").trim());
     };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
+
+    /* Engines stop on their own: Safari ignores `continuous`, and
+       Chrome times out after a stretch of silence. While the user
+       still has the button held down, start it again so it behaves
+       like one long recording. */
+    r.onend = () => {
+      if (!wanted.current) {
+        setListening(false);
+        return;
+      }
+      try {
+        r.start();
+      } catch {
+        wanted.current = false;
+        setListening(false);
+      }
+    };
+
+    r.onerror = () => {
+      wanted.current = false;
+      setListening(false);
+    };
+
     ref.current = r;
     return r;
   }
 
-  const toggle = () => {
+  const start = () => {
     // Refreshed here rather than during render: a ref written while
     // rendering is a side effect in the render phase.
-    cb.current = onHeard;
+    cb.current = onTranscript;
     const r = get();
     if (!r) return;
-    if (listening) {
-      try { r.stop(); } catch {}
-      setListening(false);
-      return;
-    }
+    settled.current = "";
+    wanted.current = true;
     try {
       r.start();
       setListening(true);
     } catch {
+      wanted.current = false;
       setListening(false);
     }
   };
 
-  return { listening, supported, toggle };
+  const stop = () => {
+    cb.current = onTranscript;
+    wanted.current = false;
+    const r = ref.current;
+    if (r) {
+      try { r.stop(); } catch {}
+    }
+    setListening(false);
+  };
+
+  return { listening, supported, start, stop };
 }
