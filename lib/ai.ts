@@ -57,6 +57,8 @@ const AiEdit = z
         amount: z.number().positive().optional(),
         categoryId: z.string().optional(),
         note: z.string().max(300).optional(),
+        /** Full replacement for the entry's line items. */
+        items: z.array(AiItem).max(50).optional(),
       })
       .refine((s) => Object.keys(s).length > 0, "empty edit"),
   })
@@ -70,6 +72,7 @@ const AiResult = z.object({
   reason: z.string().optional(),
   expenses: z.array(AiExpense).max(20).default([]),
   edits: z.array(AiEdit).max(10).default([]),
+  deletes: z.array(z.string().regex(/^exp_\d{3,}$/)).max(10).default([]),
   reply: z.string().min(1).max(900),
 });
 
@@ -80,6 +83,7 @@ export type AiReading =
       kind: "filed";
       expenses: z.infer<typeof AiExpense>[];
       edits: AiEditT[];
+      deletes: string[];
       reply: string;
     }
   | { kind: "chat"; reply: string }
@@ -109,14 +113,15 @@ Plain-spoken, warm, quick. Short sentences. No emoji, no exclamation marks, no c
 WHAT YOU CAN DO
 1. Converse (verdict "chat"). Questions, thinking out loud, advice. If a request is ambiguous - you cannot tell which entry he means, or what he wants changed - ask him, as "chat", rather than guessing.
 2. File money that happened (verdict "file", expenses[]): receipts, bank screenshots, dictated spending, money received. One message can hold several; file each.
-3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means.
-4. Everything else you do shortly (verdict "defer"): deleting entries, changing budgets, caps or categories, PDFs and spreadsheets, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability.
+3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless he corrects a figure. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means.
+4. Delete entries (verdict "file", deletes[]): only when he clearly asks you to remove a specific entry, and only ids from RECENTLY FILED. If you are not certain which one he means, ask first.
+5. Everything else you do shortly (verdict "defer"): changing budgets, caps or categories, PDFs and spreadsheets he sent, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability. Do the work NOW when it is within 1-4; "shortly" is only for what genuinely is not. Never promise features the app does not have (exports, reminders, reports as documents); if he asks for one, say you'll look into it.
 
 HIS MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
 ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
-RECENTLY FILED (newest first; these ids are the only ones you may edit)
+RECENTLY FILED (newest first; these ids are the only ones you may edit or delete; "items:" lines are that entry's current line items)
 ${ctx.recentLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
 
 THE CONVERSATION SO FAR (oldest first; "you" is Femi, "assistant" is you)
@@ -136,7 +141,7 @@ FILING RULES
 - If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
 Respond with ONLY a JSON object, no markdown fences:
-{"verdict":"file"|"chat"|"defer","reason":"background note, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving"}}],"reply":"what Femi sees"}`;
+{"verdict":"file"|"chat"|"defer","reason":"background note, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what Femi sees"}`;
 }
 
 export async function readWithAI(input: {
@@ -200,7 +205,9 @@ export async function readWithAI(input: {
 
   if (
     parsed.verdict === "defer" ||
-    (parsed.expenses.length === 0 && parsed.edits.length === 0)
+    (parsed.expenses.length === 0 &&
+      parsed.edits.length === 0 &&
+      parsed.deletes.length === 0)
   ) {
     return {
       kind: "defer",
@@ -215,6 +222,15 @@ export async function readWithAI(input: {
       return {
         kind: "defer",
         reason: `Unknown category "${e.categoryId}" on a new expense.`,
+        reply: parsed.reply,
+      };
+    }
+  }
+  for (const id of parsed.deletes) {
+    if (!input.validIds.has(id)) {
+      return {
+        kind: "defer",
+        reason: `Tried to delete "${id}", which does not exist.`,
         reply: parsed.reply,
       };
     }
@@ -240,6 +256,7 @@ export async function readWithAI(input: {
     kind: "filed",
     expenses: parsed.expenses,
     edits: parsed.edits,
+    deletes: parsed.deletes,
     reply: parsed.reply,
   };
 }

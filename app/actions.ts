@@ -61,9 +61,7 @@ export async function sendMessage(_prev: unknown, form: FormData) {
     } else {
       await addMessage({
         from: "app",
-        text: aiConfigured()
-          ? `Got ${what}. The reader only handles images, so this is waiting for Claude.`
-          : `Got ${what}. This is waiting for Claude.`,
+        text: `Got ${what}. I'll go through it shortly.`,
       });
     }
     revalidatePath("/", "layout");
@@ -83,10 +81,10 @@ export async function sendMessage(_prev: unknown, form: FormData) {
       await addMessage({
         from: "app",
         text: p.check?.startsWith("More than one amount")
-          ? "There's more than one expense in that, so I've left the whole thing for Claude rather than guess at one of them."
+          ? "There's more than one expense in that, so I'll go through it properly and file each one shortly."
           : p.amount === null
-            ? "I couldn't find an amount in that, so I've left it for Claude."
-            : "I couldn't tell which category that belongs to, so I've left it for Claude.",
+            ? "I couldn't find an amount in that at a glance, so I'll read it properly shortly."
+            : "I'll work out where that belongs and file it shortly.",
       });
     }
     revalidatePath("/", "layout");
@@ -167,10 +165,15 @@ async function processWithReader(messageId: string) {
     const allExpenses = await (await import("@/lib/data")).getExpenses();
     context.recentLines = allExpenses
       .slice(0, 25)
-      .map(
-        (e) =>
-          `${e.id} ${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`,
-      );
+      .map((e) => {
+        const head = `${e.id} ${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`;
+        if (!e.items?.length) return head;
+        const items = e.items
+          .map((i) => `${i.name} x${i.qty} @${i.unit}`)
+          .join("; ")
+          .slice(0, 600);
+        return `${head}\n  items: ${items}`;
+      });
     const validIds = new Set(allExpenses.map((e) => e.id));
 
     const reading = await readWithAI({
@@ -208,6 +211,9 @@ async function processWithReader(messageId: string) {
     for (const ed of reading.edits) {
       await editExpense(ed.id, ed.set);
       firstId ??= ed.id;
+    }
+    for (const id of reading.deletes) {
+      await deleteExpense(id);
     }
     for (const e of reading.expenses) {
       const row = await addExpense({

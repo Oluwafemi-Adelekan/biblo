@@ -87,7 +87,7 @@ export default async function Home({
           <span className="flex items-center gap-2.5">
             <WarningDiamond size={15} weight="fill" />
             <span className="text-meta font-medium">
-              {waitingOnClaude} waiting on Claude
+              {waitingOnClaude} being sorted
             </span>
           </span>
           <CaretRight size={16} weight="bold" />

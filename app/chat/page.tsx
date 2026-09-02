@@ -29,7 +29,7 @@ export default async function ChatPage() {
         </span>
         {waiting > 0 ? (
           <span className="bg-amber px-2.5 py-1 text-label uppercase text-ink">
-            {waiting} waiting on Claude
+            {waiting} being sorted
           </span>
         ) : null}
       </Band>

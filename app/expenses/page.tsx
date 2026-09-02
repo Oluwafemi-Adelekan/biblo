@@ -115,7 +115,7 @@ export default async function Expenses({
           <span className="flex items-center gap-2.5">
             <WarningDiamond size={15} weight="fill" />
             <span className="text-meta font-medium">
-              {m.pending.length} waiting on Claude
+              {m.pending.length} being sorted
             </span>
           </span>
           <CaretRight size={16} weight="bold" />

@@ -60,7 +60,7 @@ function Tab({
       prefetch={true}
       onClick={feel}
       aria-current={active ? "page" : undefined}
-      aria-label={badge > 0 ? `${label}, ${badge} waiting on Claude` : undefined}
+      aria-label={badge > 0 ? `${label}, ${badge} being sorted` : undefined}
       className="flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]"
     >
       <span className="relative flex h-6 items-center justify-center">

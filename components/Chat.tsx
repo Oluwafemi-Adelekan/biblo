@@ -588,7 +588,7 @@ function AttachSheet({
         </ul>
 
         <p className="px-5 py-4 text-meta text-ink/55">
-          Claude reads these. Nothing lands in your expenses until it does.
+          These get read and filed for you. Nothing lands in your expenses unread.
         </p>
         <div className="h-[max(1.25rem,env(safe-area-inset-bottom))]" />
       </div>
@@ -651,11 +651,9 @@ function Bubble({
         className={cn(
           mine
             ? "max-w-[85%] bg-moss text-bone px-3.5 py-2.5"
-            : fromReader
+            : fromReader || fromClaude
               ? "max-w-[95%] px-0.5 py-1 text-ink"
-              : fromClaude
-                ? "max-w-[85%] bg-bone-lift text-ink ring-1 ring-inset ring-ink/12 px-3.5 py-2.5"
-                : "max-w-[85%] bg-bone text-ink ring-1 ring-inset ring-ink/8 px-3.5 py-2.5",
+              : "max-w-[85%] bg-bone text-ink ring-1 ring-inset ring-ink/8 px-3.5 py-2.5",
         )}
       >
         {m.attachments.length > 0 ? (
@@ -702,7 +700,7 @@ function Bubble({
               : "Sending"}
           </>
         ) : null}
-        {sending ? null : fromClaude ? "Claude · " : fromReader ? "AI · " : ""}
+        {/* One assistant, one voice: no name tags on replies. */}
         {/* en-NG is a 24h locale, so midnight reads as "0:21" without
             this. Nobody writes the time that way. */}
         {sending

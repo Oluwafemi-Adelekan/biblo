@@ -14,6 +14,9 @@ come to you.
 
 **Audit the assistant every time you run.** `db.mjs ai` lists what it filed
 (`entry.ai`) AND what it edited on Femi's instruction (`entry.aiEdited`).
+Since 2 Sept 2026 it can also rewrite an entry's line items and delete
+entries Femi explicitly asks it to remove - check deletions against the
+thread: there must be a clear request for that specific entry.
 Check its work like you would your own: dates day-first, receipts itemised,
 categories sensible, no duplicates, no invented figures, and edits that
 match what Femi actually asked in the thread. Fix mistakes with `db.mjs fix`
@@ -59,8 +62,12 @@ Read `lib/schema.ts` before your first write of a session. It is the contract.
    one entry per line on the slip: `name`, `qty`, `unit`, `total`. This is
    not optional for an itemised receipt — Femi checks what individual
    things cost over time, and a lump total cannot answer that.
-   - Copy the item names as printed. "ALFA KETCHUP 340G" stays
-     "Alfa Ketchup 340g", not "ketchup": the size is part of the price.
+   - Item names: complete what the till printer cut off when the product
+     is unambiguous - "GOLDEN PENNY SPAGHET" is "Golden Penny Spaghetti",
+     "FRESHYO DRINKING YOG" is "Freshyo Drinking Yoghurt". Femi asked for
+     this (2 Sept 2026): truncated names annoyed him. Keep sizes - "340g"
+     is part of the price - and where the completion is a guess, leave the
+     fragment as printed rather than invent a variant.
    - `unit` is the price of one, `total` is what the receipt charged for
      the line. Where they disagree, the receipt wins.
    - The command warns if the lines do not reach the expense total.

@@ -98,6 +98,7 @@ export async function editExpense(
     amount?: number;
     categoryId?: string;
     note?: string;
+    items?: { name: string; qty: number; unit: number; total: number }[];
   },
 ) {
   const { data: current, error: readErr } = await db()
@@ -113,6 +114,7 @@ export async function editExpense(
   if (set.label) patch.label = set.label;
   if (set.note !== undefined) patch.note = set.note;
   if (set.categoryId) patch.category_id = set.categoryId;
+  if (set.items) patch.items = set.items;
   if (set.amount !== undefined) {
     const dir = Number(current.amount_ngn) >= 0 ? 1 : -1;
     patch.amount = dir * Math.abs(set.amount);
