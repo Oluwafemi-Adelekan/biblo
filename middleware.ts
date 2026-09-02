@@ -28,6 +28,9 @@ export async function middleware(req: NextRequest) {
   // Vercel's cron calls this on a schedule and has no cookie. It
   // carries its own bearer token instead, checked in the route.
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
+  // Booleans about configuration, nothing more; being reachable
+  // without the passcode is its entire purpose.
+  if (pathname === "/api/health") return NextResponse.next();
 
   const expected = await token(process.env.BIBLO_SESSION_SECRET!);
   const got = req.cookies.get(COOKIE)?.value ?? "";
