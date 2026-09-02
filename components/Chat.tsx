@@ -69,40 +69,65 @@ export function Chat({ messages }: { messages: Message[] }) {
     e.target.value = "";
   }
 
-  async function send() {
-    if (sending) return;
+  /* Set synchronously, before the first await. `sending` comes from
+     useTransition and is only true once the transition starts, which
+     left the whole upload unguarded: five taps during one slow photo
+     upload produced five identical messages. A ref flips before
+     anything can yield, so the second tap has something to see. */
+  const inFlight = useRef(false);
+
+  function send() {
+    if (inFlight.current || sending) return;
     if (!text.trim() && files.length === 0) return;
+
+    inFlight.current = true;
     setError(null);
 
-    let uploaded: Attachment[] = [];
-    if (files.length > 0) {
-      const body = new FormData();
-      for (const f of files) body.append("files", f.file);
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body });
-        const json = await res.json();
-        if (!res.ok) {
-          setError(json.error ?? "Upload failed.");
-          return;
-        }
-        uploaded = json.files;
-      } catch {
-        setError("Could not reach the server. Is it still running?");
-        return;
-      }
-    }
-
-    const form = new FormData();
-    form.set("text", text);
-    if (uploaded.length) form.set("attachments", JSON.stringify(uploaded));
-
+    // Cleared straight away so the composer feels immediate; the
+    // values are captured first in case the send fails and they
+    // need putting back.
+    const sentText = text;
+    const sentFiles = files;
     setText("");
     setFiles([]);
     if (fieldRef.current) fieldRef.current.style.height = "auto";
 
+    const restore = () => {
+      setText(sentText);
+      setFiles(sentFiles);
+    };
+
     startSending(async () => {
-      const r = await sendMessage(null, form);
-      if (!r.ok) setError(r.error);
+      try {
+        let uploaded: Attachment[] = [];
+        if (sentFiles.length > 0) {
+          const body = new FormData();
+          for (const f of sentFiles) body.append("files", f.file);
+          const res = await fetch("/api/upload", { method: "POST", body });
+          const json = await res.json();
+          if (!res.ok) {
+            setError(json.error ?? "Upload failed.");
+            restore();
+            return;
+          }
+          uploaded = json.files;
+        }
+
+        const form = new FormData();
+        form.set("text", sentText);
+        if (uploaded.length) form.set("attachments", JSON.stringify(uploaded));
+
+        const r = await sendMessage(null, form);
+        if (!r.ok) {
+          setError(r.error);
+          restore();
+        }
+      } catch {
+        setError("Could not reach the server. Is it still running?");
+        restore();
+      } finally {
+        inFlight.current = false;
+      }
     });
   }
 
@@ -181,7 +206,7 @@ export function Chat({ messages }: { messages: Message[] }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                void send();
+                send();
               }
             }}
             enterKeyHint="send"
@@ -210,7 +235,7 @@ export function Chat({ messages }: { messages: Message[] }) {
 
           <button
             type="button"
-            onClick={() => void send()}
+            onClick={send}
             disabled={sending || (!text.trim() && files.length === 0)}
             aria-label="Send"
             className="mb-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.92] disabled:opacity-25 disabled:active:scale-100"

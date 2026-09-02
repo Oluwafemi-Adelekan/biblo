@@ -103,14 +103,22 @@ switch (cmd) {
     for (const f of ["date", "label", "amount", "categoryId"])
       if (input[f] === undefined) die(`missing "${f}"`);
 
+    /* The sign follows the category, not the caller. Money coming in
+       is positive; everything else is an outflow. Forcing it negative
+       here made it impossible to record a salary. */
+    const { data: cat } = await db
+      .from("categories").select("kind").eq("id", input.categoryId).maybeSingle();
+    if (!cat) die(`no such category: ${input.categoryId}`);
+    const sign = cat.kind === "income" ? 1 : -1;
+
     const row = {
       id: await nextId("expenses", "exp"),
       spent_on: input.date,
       spent_at: input.time ?? null,
       label: input.label,
-      amount: -Math.abs(input.amount),
+      amount: sign * Math.abs(input.amount),
       currency: input.currency ?? "NGN",
-      amount_ngn: -Math.abs(input.amountNGN ?? input.amount),
+      amount_ngn: sign * Math.abs(input.amountNGN ?? input.amount),
       category_id: input.categoryId,
       method: input.method ?? "unknown",
       note: input.note ?? null,
@@ -175,8 +183,10 @@ switch (cmd) {
     if (patch.time !== undefined) row.spent_at = patch.time;
     if (patch.note !== undefined) row.note = patch.note;
     if (patch.amount !== undefined) {
-      row.amount = -Math.abs(patch.amount);
-      row.amount_ngn = -Math.abs(patch.amount);
+      // Keep the direction the row already had.
+      const dir = Number(current.amount_ngn) >= 0 ? 1 : -1;
+      row.amount = dir * Math.abs(patch.amount);
+      row.amount_ngn = dir * Math.abs(patch.amount);
     }
     // Correcting a row is what clears "needs a look".
     const entry = { ...current.entry };
