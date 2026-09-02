@@ -12,9 +12,16 @@ import {
   deleteExpense,
   getFile,
   saveBudget,
+  setMessageMeta,
   signUpload,
 } from "@/lib/store";
-import { aiConfigured, readWithAI, type MonthContext } from "@/lib/ai";
+import {
+  aiConfigured,
+  readWithAI,
+  type AiEditT,
+  type AiExpenseT,
+  type MonthContext,
+} from "@/lib/ai";
 import { Attachment } from "@/lib/schema";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
@@ -200,34 +207,35 @@ async function processWithReader(messageId: string) {
       return;
     }
 
-    /* Edits first: "move that to giving" should not lose to a new
-       row filed in the same breath. */
-    const { editExpense } = await import("@/lib/store");
-    let firstId: string | undefined;
-    for (const ed of reading.edits) {
-      await editExpense(ed.id, ed.set);
-      firstId ??= ed.id;
-    }
-    for (const id of reading.deletes) {
-      await deleteExpense(id);
-    }
-    for (const e of reading.expenses) {
-      const row = await addExpense({
-        date: e.date,
-        time: e.time,
-        label: e.label,
-        amount: e.amount,
-        categoryId: e.categoryId,
-        note: e.note,
-        raw: msg.text,
-        guessed: false,
-        items: e.items,
-        method: e.method,
-        how: images.length > 0 ? "photo" : "typed",
-        ai: true,
+    /* A question with the change attached. The composer becomes the
+       card; a button applies or drops the proposal. */
+    if (reading.kind === "ask") {
+      await completeMessage(messageId);
+      await addMessage({
+        from: "ai",
+        text: reading.question,
+        meta: {
+          approval: {
+            state: "open",
+            detail: reading.detail,
+            proposal: {
+              expenses: reading.expenses as unknown as Record<string, unknown>[],
+              edits: reading.edits as unknown as Record<string, unknown>[],
+              deletes: reading.deletes,
+            },
+            raw: msg.text,
+          },
+        },
       });
-      firstId ??= row.id;
+      revalidatePath("/", "layout");
+      return;
     }
+
+    const firstId = await applyProposal(
+      reading,
+      msg.text,
+      images.length > 0 ? "photo" : "typed",
+    );
 
     await completeMessage(messageId, firstId);
     await addMessage({ from: "ai", text: reading.reply, expenseId: firstId });
@@ -236,6 +244,85 @@ async function processWithReader(messageId: string) {
     // Say nothing and leave it pending: silence here means Claude
     // picks it up on the next /budget, which is the safe default.
   }
+}
+
+/* The one way changes land, whether filed outright or held for a
+   button press. Edits first: "move that to giving" should not lose
+   to a new row filed in the same breath. */
+async function applyProposal(
+  p: { expenses: AiExpenseT[]; edits: AiEditT[]; deletes: string[] },
+  raw: string | undefined,
+  how: "photo" | "typed",
+): Promise<string | undefined> {
+  const { editExpense } = await import("@/lib/store");
+  let firstId: string | undefined;
+  for (const ed of p.edits) {
+    await editExpense(ed.id, ed.set);
+    firstId ??= ed.id;
+  }
+  for (const id of p.deletes) {
+    await deleteExpense(id);
+  }
+  for (const e of p.expenses) {
+    const row = await addExpense({
+      date: e.date,
+      time: e.time,
+      label: e.label,
+      amount: e.amount,
+      categoryId: e.categoryId,
+      note: e.note,
+      raw,
+      guessed: false,
+      items: e.items,
+      method: e.method,
+      how,
+      ai: true,
+    });
+    firstId ??= row.id;
+  }
+  return firstId;
+}
+
+/** The button on the approval card. Applies or drops the held
+ *  change, then says what happened in the thread. */
+export async function resolveApproval(id: string, approved: boolean) {
+  const { getMessages } = await import("@/lib/data");
+  const messages = await getMessages();
+  const msg = messages.find((m) => m.id === id);
+  const ap = msg?.meta?.approval;
+  if (!ap || ap.state !== "open") {
+    return { ok: false as const, error: "That question is no longer open." };
+  }
+
+  if (!approved) {
+    await setMessageMeta(id, { approval: { ...ap, state: "denied" } });
+    await addMessage({ from: "ai", text: "Okay, left it alone." });
+    revalidatePath("/", "layout");
+    return { ok: true as const };
+  }
+
+  const p = ap.proposal as unknown as {
+    expenses: AiExpenseT[];
+    edits: AiEditT[];
+    deletes: string[];
+  };
+  const firstId = await applyProposal(p, ap.raw, "typed");
+  await setMessageMeta(id, { approval: { ...ap, state: "approved" } });
+
+  const parts: string[] = [];
+  if (p.expenses.length > 0)
+    parts.push(p.expenses.length === 1 ? "filed it" : `filed ${p.expenses.length} entries`);
+  if (p.edits.length > 0)
+    parts.push(p.edits.length === 1 ? "updated the entry" : `updated ${p.edits.length} entries`);
+  if (p.deletes.length > 0)
+    parts.push(p.deletes.length === 1 ? "removed it" : `removed ${p.deletes.length} entries`);
+  await addMessage({
+    from: "ai",
+    text: `Done, ${parts.join(" and ")}.`,
+    expenseId: firstId,
+  });
+  revalidatePath("/", "layout");
+  return { ok: true as const };
 }
 
 /** Anything you might reasonably have a receipt in. */

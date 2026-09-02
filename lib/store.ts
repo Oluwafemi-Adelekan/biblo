@@ -5,6 +5,8 @@ import {
   files,
   fromExpense,
   fromMessage,
+  META_TYPE,
+  metaEntry,
   toExpense,
   toMessage,
 } from "./supabase";
@@ -139,6 +141,7 @@ export async function addMessage(input: {
   attachments?: Attachment[];
   expenseId?: string;
   status?: Message["status"];
+  meta?: Message["meta"];
 }): Promise<Message> {
   const row: Message = {
     id: await nextId("messages", "msg"),
@@ -148,6 +151,7 @@ export async function addMessage(input: {
     attachments: input.attachments ?? [],
     expenseId: input.expenseId,
     status: input.status ?? "done",
+    meta: input.meta,
   };
 
   let { data, error } = await db()
@@ -168,6 +172,28 @@ export async function addMessage(input: {
   }
   if (error) boom("send that message", error);
   return toMessage(data);
+}
+
+/** Rewrites the structured state riding on a message - an approval
+ *  moving from open to approved or denied. */
+export async function setMessageMeta(
+  id: string,
+  meta: NonNullable<Message["meta"]>,
+) {
+  const { data, error: readErr } = await db()
+    .from("messages")
+    .select("attachments")
+    .eq("id", id)
+    .single();
+  if (readErr) boom(`find ${id}`, readErr);
+  const rest = ((data.attachments ?? []) as Attachment[]).filter(
+    (a) => a.type !== META_TYPE,
+  );
+  const { error } = await db()
+    .from("messages")
+    .update({ attachments: [...rest, metaEntry(meta)] })
+    .eq("id", id);
+  if (error) boom(`update ${id}`, error);
 }
 
 /** Takes a message off the pending list once handled. */

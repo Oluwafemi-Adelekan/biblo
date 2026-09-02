@@ -117,6 +117,28 @@ export const Message = z.object({
   expenseId: z.string().optional(),
   /** pending = still waiting on Claude. Only ever set on "you". */
   status: z.enum(["done", "pending"]).default("done"),
+  /** Structured state riding on an assistant message. An approval is
+   *  a question with the exact change attached: the composer becomes
+   *  the card, a button answers it, and the proposal is applied or
+   *  dropped. Stored inside the attachments jsonb (no new column)
+   *  and lifted out by the row mappers. */
+  meta: z
+    .object({
+      approval: z
+        .object({
+          state: z.enum(["open", "approved", "denied"]),
+          detail: z.string().optional(),
+          proposal: z.object({
+            expenses: z.array(z.record(z.string(), z.unknown())).default([]),
+            edits: z.array(z.record(z.string(), z.unknown())).default([]),
+            deletes: z.array(z.string()).default([]),
+          }),
+          /** The original message text, kept for entry.raw on filing. */
+          raw: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 export type Message = z.infer<typeof Message>;
 

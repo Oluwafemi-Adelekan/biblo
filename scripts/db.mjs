@@ -74,7 +74,7 @@ switch (cmd) {
     for (const m of msgs ?? []) {
       console.log(`  ${m.id}  ${m.sent_at.slice(0, 16).replace("T", " ")}`);
       if (m.body) console.log(`     text: ${m.body}`);
-      for (const a of m.attachments ?? []) {
+      for (const a of (m.attachments ?? []).filter((x) => x.type !== "application/x-biblo-meta")) {
         // The url is /api/file/<key>; the key is what storage knows.
         const key = String(a.url).replace("/api/file/", "");
         console.log(`     file: ${a.name} (${a.type}, ${a.size} bytes) key=${key}`);

@@ -110,22 +110,45 @@ type MessageRow = {
   status: Message["status"];
 };
 
-export const toMessage = (r: MessageRow): Message => ({
-  id: r.id,
-  at: r.sent_at,
-  from: r.sender,
-  text: r.body ?? undefined,
-  attachments: r.attachments ?? [],
-  expenseId: r.expense_id ?? undefined,
-  status: r.status,
+/* Structured message state lives as one reserved entry inside the
+   attachments jsonb - the management PATs for real DDL are dead, and
+   a column can wait. These mappers keep the trick invisible: no code
+   above them ever sees the reserved entry as an attachment. */
+export const META_TYPE = "application/x-biblo-meta";
+export const metaEntry = (meta: NonNullable<Message["meta"]>) => ({
+  name: "__meta__",
+  type: META_TYPE,
+  size: 0,
+  url: JSON.stringify(meta),
 });
+
+export const toMessage = (r: MessageRow): Message => {
+  const all = r.attachments ?? [];
+  const carrier = all.find((a) => a.type === META_TYPE);
+  let meta: Message["meta"];
+  if (carrier) {
+    try {
+      meta = JSON.parse(carrier.url);
+    } catch {}
+  }
+  return {
+    id: r.id,
+    at: r.sent_at,
+    from: r.sender,
+    text: r.body ?? undefined,
+    attachments: all.filter((a) => a.type !== META_TYPE),
+    expenseId: r.expense_id ?? undefined,
+    status: r.status,
+    meta,
+  };
+};
 
 export const fromMessage = (m: Message) => ({
   id: m.id,
   sent_at: m.at,
   sender: m.from,
   body: m.text ?? null,
-  attachments: m.attachments,
+  attachments: m.meta ? [...m.attachments, metaEntry(m.meta)] : m.attachments,
   expense_id: m.expenseId ?? null,
   status: m.status,
 });

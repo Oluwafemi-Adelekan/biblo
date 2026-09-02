@@ -24,7 +24,13 @@ async function withRetry<T>(go: () => Promise<T>): Promise<T> {
     return await go();
   } catch {
     await new Promise((r) => setTimeout(r, 350));
-    return go();
+    try {
+      return await go();
+    } catch {
+      // A cold pooler can need more than one beat.
+      await new Promise((r) => setTimeout(r, 900));
+      return go();
+    }
   }
 }
 

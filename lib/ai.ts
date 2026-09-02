@@ -68,8 +68,10 @@ const AiEdit = z
    chat  - conversation; nothing written
    defer - background work (in truth: Claude's queue) */
 const AiResult = z.object({
-  verdict: z.enum(["file", "chat", "defer"]),
+  verdict: z.enum(["file", "chat", "ask", "defer"]),
   reason: z.string().optional(),
+  /** One line of context under an ask. */
+  detail: z.string().max(300).optional(),
   expenses: z.array(AiExpense).max(20).default([]),
   edits: z.array(AiEdit).max(10).default([]),
   deletes: z.array(z.string().regex(/^exp_\d{3,}$/)).max(10).default([]),
@@ -87,7 +89,18 @@ export type AiReading =
       reply: string;
     }
   | { kind: "chat"; reply: string }
+  | {
+      /** A concrete change held out for a yes or no. */
+      kind: "ask";
+      question: string;
+      detail?: string;
+      expenses: z.infer<typeof AiExpense>[];
+      edits: AiEditT[];
+      deletes: string[];
+    }
   | { kind: "defer"; reason: string; reply?: string };
+
+export type AiExpenseT = z.infer<typeof AiExpense>;
 
 export type MonthContext = {
   month: string;
@@ -115,7 +128,8 @@ WHAT YOU CAN DO
 2. File money that happened (verdict "file", expenses[]): receipts, bank screenshots, dictated spending, money received. One message can hold several; file each.
 3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless he corrects a figure. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means. When Femi tells you what something is or what it should say, that IS the confirmation - make the edit right away; never defer to "verify" what he just told you. If checking a name or price on the web genuinely helps, search now, in this same turn, and file the result - never promise to look it up later.
 4. Delete entries (verdict "file", deletes[]): only when he clearly asks you to remove a specific entry, and only ids from RECENTLY FILED. If you are not certain which one he means, ask first.
-5. Everything else you do shortly (verdict "defer"): changing budgets, caps or categories, PDFs and spreadsheets he sent, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability. Do the work NOW when it is within 1-4; "shortly" is only for what genuinely is not. Never promise features the app does not have (exports, reminders, reports as documents); if he asks for one, say you'll look into it.
+5. Check before changing (verdict "ask"): when the next step is a concrete change you are ready to make but should confirm first - a guessed category, a delete he implied but did not confirm plainly, a correction you are not certain of - put the exact change in expenses/edits/deletes and make reply the question itself: ONE short line, like "File it under dining?". Optional detail: one sentence of context. He answers with a button, so the question must be strictly yes-or-no. Never use ask for conversation, for anything he already told you plainly (that is verdict file), or twice for the same thing.
+6. Everything else you do shortly (verdict "defer"): changing budgets, caps or categories, PDFs and spreadsheets he sent, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability. Do the work NOW when it is within 1-4; "shortly" is only for what genuinely is not. Never promise features the app does not have (exports, reminders, reports as documents); if he asks for one, say you'll look into it.
 
 HIS MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
@@ -141,7 +155,7 @@ FILING RULES
 - If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
-{"verdict":"file"|"chat"|"defer","reason":"background note, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what Femi sees"}`;
+{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what Femi sees"}`;
 }
 
 export async function readWithAI(input: {
@@ -217,12 +231,15 @@ export async function readWithAI(input: {
     return { kind: "chat", reply: parsed.reply };
   }
 
-  if (
-    parsed.verdict === "defer" ||
-    (parsed.expenses.length === 0 &&
-      parsed.edits.length === 0 &&
-      parsed.deletes.length === 0)
-  ) {
+  const empty =
+    parsed.expenses.length === 0 &&
+    parsed.edits.length === 0 &&
+    parsed.deletes.length === 0;
+  if (parsed.verdict === "defer" || empty) {
+    // An ask with nothing attached is just a question: conversation.
+    if (parsed.verdict === "ask") {
+      return { kind: "chat", reply: parsed.reply };
+    }
     return {
       kind: "defer",
       reason: parsed.reason || "The assistant was not sure.",
@@ -264,6 +281,17 @@ export async function readWithAI(input: {
         reply: parsed.reply,
       };
     }
+  }
+
+  if (parsed.verdict === "ask") {
+    return {
+      kind: "ask",
+      question: parsed.reply,
+      detail: parsed.detail,
+      expenses: parsed.expenses,
+      edits: parsed.edits,
+      deletes: parsed.deletes,
+    };
   }
 
   return {

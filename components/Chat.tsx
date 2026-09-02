@@ -16,10 +16,12 @@ import {
   ArrowUp,
   Camera,
   CaretDown,
+  Check,
   CircleNotch,
   FileText,
   Microphone,
   Plus,
+  Question,
   Receipt,
   Stop,
   UploadSimple,
@@ -28,7 +30,7 @@ import {
 import { dayLabel, naira } from "@/lib/format";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
-import { prepareUploads, sendMessage } from "@/app/actions";
+import { prepareUploads, resolveApproval, sendMessage } from "@/app/actions";
 import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
@@ -410,6 +412,13 @@ export function Chat({
   );
   const working = Boolean(oldestPending);
 
+  /* An open approval takes over the composer entirely - his ask: the
+     input goes, the question and its two buttons stand in its place.
+     "Leave it" is always the way back to the keyboard. */
+  const openAsk = [...thread]
+    .reverse()
+    .find((m) => m.from !== "you" && m.meta?.approval?.state === "open");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* ---- the thread ---------------------------------------- */}
@@ -422,16 +431,19 @@ export function Chat({
         {thread.length === 0 ? (
           <Empty onPick={(t) => { applyText(t); fieldRef.current?.focus(); }} />
         ) : (
-          thread.map((m) => (
-            <Bubble
-              key={m.id}
-              message={m}
-              sending={m.id === PENDING_ID}
-              onView={setViewer}
-              expense={m.expenseId ? expenses[m.expenseId] : undefined}
-              reveal={m.id === revealId}
-            />
-          ))
+          thread.map((m) =>
+            // The open question lives in the composer card, not here.
+            m.id === openAsk?.id ? null : (
+              <Bubble
+                key={m.id}
+                message={m}
+                sending={m.id === PENDING_ID}
+                onView={setViewer}
+                expense={m.expenseId ? expenses[m.expenseId] : undefined}
+                reveal={m.id === revealId}
+              />
+            ),
+          )
         )}
         {oldestPending ? (
           <ThinkingLine
@@ -447,6 +459,11 @@ export function Chat({
 
       {/* ---- composer ------------------------------------------ */}
       <div className="sticky bottom-0 border-t border-rule bg-bone">
+        {openAsk ? <ApprovalCard key={openAsk.id} m={openAsk} /> : null}
+
+        {/* Hidden, not unmounted, while a question is up: the draft,
+            the staged files and the caret all survive the card. */}
+        <div hidden={Boolean(openAsk)}>
         {error ? (
           <p className="flex items-start gap-2 bg-ember px-4 py-2.5 text-meta text-ink">
             <span className="flex-1">{error}</span>
@@ -630,6 +647,7 @@ export function Chat({
           className="hidden"
           onChange={take}
         />
+        </div>
       </div>
 
       <AttachSheet
@@ -846,6 +864,13 @@ function Bubble({
           open rather than a word you have to spot. */}
       {expense && m.expenseId && !mine ? (
         <ExpenseCard id={m.expenseId} e={expense} />
+      ) : null}
+
+      {/* A question that has been answered keeps its outcome. */}
+      {m.meta?.approval && m.meta.approval.state !== "open" ? (
+        <span className="mt-1 px-0.5 text-label uppercase text-ink/40">
+          {m.meta.approval.state === "approved" ? "Approved" : "Left as is"}
+        </span>
       ) : null}
     </div>
   );
@@ -1078,6 +1103,116 @@ function Reply({
         </div>
       ) : null}
     </>
+  );
+}
+
+/* ---- the approval card -----------------------------------------
+   From his beui reference: when the assistant holds a change out
+   for a yes or no, the card IS the composer - no input field
+   underneath, no layer above one. Two buttons; both give the
+   keyboard back. */
+function ApprovalCard({ m }: { m: Message }) {
+  const ap = m.meta!.approval!;
+  const [busy, start] = useTransition();
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const answer = (approved: boolean) => {
+    if (busy) return;
+    feel();
+    setChoice(approved);
+    start(async () => {
+      await resolveApproval(m.id, approved);
+    });
+  };
+
+  const p = ap.proposal as {
+    expenses: { label?: string; amount?: number; categoryId?: string }[];
+    edits: { id: string; set: Record<string, unknown> }[];
+    deletes: string[];
+  };
+  const lines = [
+    ...p.expenses.map(
+      (e) =>
+        `File ${naira(Math.abs(Number(e.amount ?? 0)), { decimals: 0 })} · ${e.label ?? ""} → ${e.categoryId ?? ""}`,
+    ),
+    ...p.edits.map(
+      (ed) =>
+        `Update ${ed.id}: ${Object.entries(ed.set)
+          .map(([k, v]) => `${k} → ${Array.isArray(v) ? `${v.length} items` : String(v)}`)
+          .join(", ")}`,
+    ),
+    ...p.deletes.map((d) => `Remove ${d}`),
+  ];
+
+  return (
+    <div className="px-4 py-4 motion-safe:animate-[rise_200ms_var(--ease-out-strong)]">
+      <div className="flex items-start gap-3">
+        <Question size={18} weight="bold" className="mt-0.5 shrink-0 text-ink/60" />
+        <div className="min-w-0 flex-1">
+          <p className="text-body text-ink">{m.text}</p>
+          {ap.detail ? (
+            <p className="mt-1 text-meta text-ink/60">{ap.detail}</p>
+          ) : null}
+          {lines.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setDetailOpen((o) => !o)}
+                aria-expanded={detailOpen}
+                className="mt-1.5 flex items-center gap-1 text-label uppercase text-ink/50 transition-colors duration-press hover:text-ink"
+              >
+                View details
+                <CaretDown
+                  size={10}
+                  weight="bold"
+                  className={cn(
+                    "transition-transform duration-press ease-out-strong",
+                    detailOpen && "rotate-180",
+                  )}
+                />
+              </button>
+              {detailOpen ? (
+                <ul className="mt-1.5 space-y-1 border-l-2 border-rule pl-2.5 text-meta text-ink/70 motion-safe:animate-[rise_160ms_var(--ease-out-strong)]">
+                  {lines.map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-3.5 flex items-center gap-2 pl-[30px]">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => answer(true)}
+          className="inline-flex items-center gap-2 bg-ink px-5 py-3 text-label uppercase text-bone transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60"
+        >
+          {busy && choice === true ? (
+            <CircleNotch size={14} weight="bold" className="animate-spin" />
+          ) : (
+            <Check size={14} weight="bold" />
+          )}
+          Go ahead
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => answer(false)}
+          className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"
+        >
+          {busy && choice === false ? (
+            <CircleNotch size={14} weight="bold" className="animate-spin" />
+          ) : (
+            <X size={14} weight="bold" />
+          )}
+          Leave it
+        </button>
+      </div>
+    </div>
   );
 }
 

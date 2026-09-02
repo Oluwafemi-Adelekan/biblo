@@ -16,7 +16,12 @@ come to you.
 (`entry.ai`) AND what it edited on Femi's instruction (`entry.aiEdited`).
 Since 2 Sept 2026 it can also rewrite an entry's line items and delete
 entries Femi explicitly asks it to remove - check deletions against the
-thread: there must be a clear request for that specific entry.
+thread: there must be a clear request for that specific entry. It can
+also hold a change out for approval: an `ai` message whose attachments
+carry a reserved `application/x-biblo-meta` entry (an approval card in
+the app; ignore that entry as a file). An OPEN approval waits on Femi's
+button, not on you - do not act on it, and never resolve it for him.
+Audit approved ones like anything else the assistant applied.
 Check its work like you would your own: dates day-first, receipts itemised,
 categories sensible, no duplicates, no invented figures, and edits that
 match what Femi actually asked in the thread. Fix mistakes with `db.mjs fix`

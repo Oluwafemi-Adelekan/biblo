@@ -39,7 +39,7 @@ export default function GlobalError({
         </p>
         <button
           type="button"
-          onClick={reset}
+          onClick={() => window.location.reload()}
           style={{
             marginTop: "1.25rem",
             background: "#16180f",
