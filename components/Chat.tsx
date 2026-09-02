@@ -40,7 +40,7 @@ import { joinTranscript, readResults } from "@/lib/transcript";
    1MB and quietly kills every photo a phone takes.
    ============================================================ */
 
-type Pending = { file: File; url?: string; error?: string };
+type Pending = { file: File; url?: string; error?: string; preview?: string };
 
 /* One retry, because a dropped connection on a phone is usually a
    moment rather than a state. Returns why it failed rather than a
@@ -77,6 +77,8 @@ export function Chat({ messages }: { messages: Message[] }) {
   const [sending, startSending] = useTransition();
 
   const [attachOpen, setAttachOpen] = useState(false);
+  /* An image tapped anywhere in the chat opens full screen. */
+  const [viewer, setViewer] = useState<string | null>(null);
   /* Once the message wraps, the field takes a row of its own and the
      buttons drop beneath it, the way every chat composer does. */
   const [wrapped, setWrapped] = useState(false);
@@ -241,7 +243,16 @@ export function Chat({ messages }: { messages: Message[] }) {
 
   function take(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
-    setFiles((p) => [...p, ...picked.map((file) => ({ file }))]);
+    setFiles((p) => [
+      ...p,
+      ...picked.map((file) => ({
+        file,
+        // Images show as themselves, not as filenames.
+        preview: file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : undefined,
+      })),
+    ]);
     e.target.value = "";
   }
 
@@ -338,6 +349,11 @@ export function Chat({ messages }: { messages: Message[] }) {
         if (!r.ok) {
           setError(r.error);
           restore();
+        } else {
+          // Sent for real; the local previews have done their job.
+          for (const f of sentFiles) {
+            if (f.preview) URL.revokeObjectURL(f.preview);
+          }
         }
       } catch (e) {
         /* Say what actually went wrong. The old message asked whether
@@ -378,7 +394,12 @@ export function Chat({ messages }: { messages: Message[] }) {
           <Empty onPick={(t) => { applyText(t); fieldRef.current?.focus(); }} />
         ) : (
           thread.map((m) => (
-            <Bubble key={m.id} message={m} sending={m.id === PENDING_ID} />
+            <Bubble
+              key={m.id}
+              message={m}
+              sending={m.id === PENDING_ID}
+              onView={setViewer}
+            />
           ))
         )}
         {oldestPending ? (
@@ -390,6 +411,8 @@ export function Chat({ messages }: { messages: Message[] }) {
         ) : null}
         <div ref={endRef} />
       </div>
+
+      {viewer ? <Lightbox url={viewer} onClose={() => setViewer(null)} /> : null}
 
       {/* ---- composer ------------------------------------------ */}
       <div className="sticky bottom-0 border-t border-rule bg-bone">
@@ -405,21 +428,42 @@ export function Chat({ messages }: { messages: Message[] }) {
         {files.length > 0 ? (
           <ul className="flex flex-wrap gap-2 px-4 pt-3">
             {files.map((f, i) => (
-              <li
-                key={i}
-                className="flex items-center gap-2 border border-rule bg-bone-lift py-1.5 pl-2 pr-1.5"
-              >
-                <FileText size={14} className="text-ink/60" />
-                <span className="max-w-[9rem] truncate text-label text-ink/70">
-                  {f.file.name}
-                </span>
+              <li key={i} className="relative">
+                {f.preview ? (
+                  <button
+                    type="button"
+                    aria-label={`View ${f.file.name}`}
+                    onClick={() => setViewer(f.preview!)}
+                    className="block border border-rule"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={f.preview}
+                      alt={f.file.name}
+                      className="size-14 object-cover"
+                    />
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 border border-rule bg-bone-lift py-1.5 pl-2 pr-6">
+                    <FileText size={14} className="text-ink/60" />
+                    <span className="max-w-[9rem] truncate text-label text-ink/70">
+                      {f.file.name}
+                    </span>
+                  </span>
+                )}
                 <button
                   type="button"
                   aria-label={`Remove ${f.file.name}`}
-                  onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}
-                  className="text-ink/50 hover:text-ink"
+                  onClick={() => {
+                    if (f.preview) URL.revokeObjectURL(f.preview);
+                    setFiles((p) => p.filter((_, j) => j !== i));
+                  }}
+                  className={cn(
+                    "absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-bone",
+                    !f.preview && "bg-transparent text-ink/50 hover:text-ink right-0.5 top-1/2 -translate-y-1/2",
+                  )}
                 >
-                  <X size={13} weight="bold" />
+                  <X size={11} weight="bold" />
                 </button>
               </li>
             ))}
@@ -653,9 +697,11 @@ function AttachOption({
 function Bubble({
   message: m,
   sending = false,
+  onView,
 }: {
   message: Message;
   sending?: boolean;
+  onView?: (url: string) => void;
 }) {
   const mine = m.from === "you";
   const fromClaude = m.from === "claude";
@@ -685,14 +731,22 @@ function Bubble({
             {m.attachments.map((a) => (
               <li key={a.url}>
                 {a.type.startsWith("image/") ? (
-                  <Image
-                    src={a.url}
-                    alt={a.name}
-                    width={200}
-                    height={200}
-                    unoptimized
-                    className="max-h-48 w-auto object-cover"
-                  />
+                  <button
+                    type="button"
+                    aria-label={`View ${a.name} full screen`}
+                    onClick={() => onView?.(a.url)}
+                    disabled={!a.url}
+                    className="block"
+                  >
+                    <Image
+                      src={a.url}
+                      alt={a.name}
+                      width={200}
+                      height={200}
+                      unoptimized
+                      className="max-h-48 w-auto object-cover"
+                    />
+                  </button>
                 ) : (
                   <a
                     href={a.url}
@@ -761,6 +815,37 @@ function Bubble({
    single model call the phases cannot be observed from outside, so
    the timing is honest pacing, not telemetry. Past thirty seconds it
    stops pretending to know and just says so. */
+
+/* ---- full-screen image viewer ---------------------------------
+   Any image in the chat, sent or about to be, opens over everything
+   on tap. Tapping anywhere, or the X, puts it away. */
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image viewer"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/92 motion-safe:animate-[rise_180ms_var(--ease-out-strong)]"
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-bone/10 text-bone"
+        style={{ marginTop: "env(safe-area-inset-top)" }}
+      >
+        <X size={20} weight="bold" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        className="max-h-[88dvh] max-w-[94vw] object-contain"
+      />
+    </div>
+  );
+}
 
 /* ---- assistant replies with real links ------------------------
    The searching reader cites the web in markdown: inline links and
@@ -1000,9 +1085,12 @@ function useDictation(onTranscript: (text: string) => void) {
     if (!Ctor) return null;
 
     const r = new Ctor();
-    // Keep listening through pauses, and show words as they land
-    // rather than only at the end of a sentence.
-    r.continuous = true;
+    /* Desktop keeps one long session through pauses. Android's
+       engine re-reports finals it already delivered inside a
+       continuous session, which is where the doubled words came
+       from on the Pixel - so there, each phrase is its own short
+       session and the onend restart loop stitches them together. */
+    r.continuous = !/Android/i.test(navigator.userAgent);
     r.interimResults = true;
     r.lang = "en-NG";
 
@@ -1016,11 +1104,14 @@ function useDictation(onTranscript: (text: string) => void) {
 
     r.onend = () => {
       // The results list resets on restart, so bank this session's
-      // finals before they disappear.
-      if (sessionFinal.current) {
+      // finals before they disappear. Never bank the same words
+      // twice: some engines fire onend after re-reporting text that
+      // is already carried.
+      const gained = sessionFinal.current.trim();
+      if (gained && !carried.current.trimEnd().endsWith(gained)) {
         carried.current = (carried.current + sessionFinal.current).trimEnd() + " ";
-        sessionFinal.current = "";
       }
+      sessionFinal.current = "";
 
       if (!wanted.current) {
         setListening(false);
