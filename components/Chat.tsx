@@ -49,6 +49,9 @@ export function Chat({ messages }: { messages: Message[] }) {
   const [sending, startSending] = useTransition();
 
   const [attachOpen, setAttachOpen] = useState(false);
+  /* Once the message wraps, the field takes a row of its own and the
+     buttons drop beneath it, the way every chat composer does. */
+  const [wrapped, setWrapped] = useState(false);
 
   /* Your message shows the instant you send it, greyed, rather than
      vanishing into an empty composer while a photo uploads. React
@@ -95,6 +98,25 @@ export function Chat({ messages }: { messages: Message[] }) {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }
+
+  /* Measured rather than guessed from character count, which would
+     be wrong for a long word or a narrow phone. A ResizeObserver
+     also means the state is set from its callback rather than from
+     an effect body, which would cascade renders. */
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const line = parseFloat(cs.lineHeight) || 22;
+      const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      setWrapped(el.clientHeight - pad > line * 1.5);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
 
   function take(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -232,13 +254,25 @@ export function Chat({ messages }: { messages: Message[] }) {
           </ul>
         ) : null}
 
-        <div className="flex items-end gap-2 px-4 py-3">
+        {/* One element list either way. Rendering two different
+            trees would remount the textarea on the switch and drop
+            the caret mid-word, so the order and widths change
+            instead. */}
+        <div
+          className={cn(
+            "flex items-end gap-2 px-4 py-3",
+            wrapped && "flex-wrap gap-y-2",
+          )}
+        >
           <button
             type="button"
             onClick={() => setAttachOpen(true)}
             aria-label="Add a photo or file"
             aria-expanded={attachOpen}
-            className="mb-0.5 inline-flex size-10 shrink-0 items-center justify-center border border-rule text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.92]"
+            className={cn(
+              "mb-0.5 inline-flex size-10 shrink-0 items-center justify-center border border-rule text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.92]",
+              wrapped && "order-2",
+            )}
           >
             <Plus size={20} weight="bold" />
           </button>
@@ -262,7 +296,10 @@ export function Chat({ messages }: { messages: Message[] }) {
             autoCapitalize="sentences"
             placeholder={listening ? "Listening…" : "Type an expense, or say something"}
             aria-label="Message"
-            className="chat-field max-h-40 min-h-[2.5rem] flex-1 resize-none self-center bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
+            className={cn(
+              "chat-field max-h-40 min-h-[2.5rem] resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
+              wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
+            )}
           />
 
           {supported ? (
@@ -276,6 +313,8 @@ export function Chat({ messages }: { messages: Message[] }) {
                 listening
                   ? "bg-ember text-ink motion-safe:animate-[pulse-mic_1.4s_ease-in-out_infinite]"
                   : "text-ink/60 hover:text-ink",
+                // First of the pair, so this is what pushes them right.
+                wrapped && "order-3 ml-auto",
               )}
             >
               {listening ? <Stop size={18} weight="fill" /> : <Microphone size={20} />}
@@ -287,7 +326,11 @@ export function Chat({ messages }: { messages: Message[] }) {
             onClick={send}
             disabled={sending || (!text.trim() && files.length === 0)}
             aria-label="Send"
-            className="mb-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.92] disabled:opacity-25 disabled:active:scale-100"
+            className={cn(
+              "mb-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.92] disabled:opacity-25 disabled:active:scale-100",
+              // Takes over the push when there is no mic to do it.
+              wrapped && (supported ? "order-4" : "order-3 ml-auto"),
+            )}
           >
             <ArrowUp size={18} weight="bold" />
           </button>
