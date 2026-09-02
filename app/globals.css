@@ -22,6 +22,9 @@
   --color-ember: oklch(0.644 0.168 36.5);      /* overspend, primary action */
   --color-ember-deep: oklch(0.579 0.156 36.5); /* ember pressed */
   --color-amber: oklch(0.819 0.158 95.6);      /* attention, add, category focus */
+  /* Money coming in. Ember means a problem, and income is not one.
+     Passes AA on every surface: 7.0 on bone, 4.8 on sage. */
+  --color-positive: oklch(0.38 0.1 150);
   --color-amber-deep: oklch(0.762 0.148 95.6);
 
   /* --- hairlines --------------------------------------------- */

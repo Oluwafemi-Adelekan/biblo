@@ -55,7 +55,7 @@ export function ExpenseRow({
         value={e.amountNGN}
         size="body"
         sign
-        tone={income ? "ember" : "default"}
+        tone={income ? "positive" : "default"}
         className="shrink-0"
       />
     </Link>

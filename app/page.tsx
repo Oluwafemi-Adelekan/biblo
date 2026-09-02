@@ -6,6 +6,7 @@ import { CategoryBars } from "@/components/charts/CategoryBars";
 import { PaceChart } from "@/components/charts/PaceChart";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
+import { IncomeToggle } from "@/components/IncomeToggle";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { monthLabel, shortNaira } from "@/lib/format";
 
@@ -22,7 +23,11 @@ export default async function Home({
 
   return (
     <div className="pb-6">
-      <Band tone="sage" pad="none" className="flex items-center justify-between px-5 pt-5 pb-1">
+      <Band
+        tone="sage"
+        pad="none"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3"
+      >
         <Wordmark text={m.config.wordmark} className="text-[1.4rem]" />
         <MonthPicker
           current={m.month}
@@ -56,10 +61,7 @@ export default async function Home({
             <p className="tnum mt-1 text-meta font-semibold">{shortNaira(m.budget.total)}</p>
           </span>
           <span className="h-7 w-px bg-rule" />
-          <span>
-            <Label tone="dim">Income</Label>
-            <p className="tnum mt-1 text-meta font-semibold">{shortNaira(m.budget.income)}</p>
-          </span>
+          <IncomeToggle income={m.budget.income} />
         </div>
       </Band>
 

@@ -29,9 +29,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={archivo.variable}>
       <body className="bg-sage-dim">
-        <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-sage shadow-[0_0_0_1px_var(--color-rule)]">
-          <main className="flex flex-1 flex-col">{children}</main>
-          <BottomNav pending={m.pending.length + m.needsCheck.length} />
+        <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-sage shadow-[0_0_0_1px_var(--color-rule)]">
+          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            {children}
+          </main>
+          <BottomNav pending={m.pending.length} />
         </div>
       </body>
     </html>

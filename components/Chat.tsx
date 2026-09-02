@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/Text";
 import { sendMessage } from "@/app/actions";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
+import { joinTranscript, readResults } from "@/lib/transcript";
 
 /* ============================================================
    The whole input surface of Biblo.
@@ -259,7 +260,7 @@ export function Chat({ messages }: { messages: Message[] }) {
             }}
             enterKeyHint="send"
             autoCapitalize="sentences"
-            placeholder={listening ? "Listening…" : "5k fuel"}
+            placeholder={listening ? "Listening…" : "Type an expense, or say something"}
             aria-label="Message"
             className="chat-field max-h-40 min-h-[2.5rem] flex-1 resize-none self-center bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
           />
@@ -564,8 +565,10 @@ function useDictation(onTranscript: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const ref = useRef<SpeechRecognitionLike | null>(null);
   const cb = useRef(onTranscript);
-  /** Everything finalised since the button was pressed. */
-  const settled = useRef("");
+  /** Transcript from sessions that have already ended and restarted. */
+  const carried = useRef("");
+  /** The finalised part of the session running right now. */
+  const sessionFinal = useRef("");
   /** What the user wants, as opposed to what the engine is doing. */
   const wanted = useRef(false);
 
@@ -597,31 +600,38 @@ function useDictation(onTranscript: (text: string) => void) {
     r.interimResults = true;
     r.lang = "en-NG";
 
+    /* Rebuilt from the full results list every time, never appended
+       to. See lib/transcript.ts for why. */
     r.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) settled.current += chunk;
-        else interim += chunk;
-      }
-      cb.current((settled.current + interim).replace(/\s+/g, " ").trim());
+      const { settled, interim } = readResults(e.results);
+      sessionFinal.current = settled;
+      cb.current(joinTranscript(carried.current, settled, interim));
     };
 
-    /* Engines stop on their own: Safari ignores `continuous`, and
-       Chrome times out after a stretch of silence. While the user
-       still has the button held down, start it again so it behaves
-       like one long recording. */
     r.onend = () => {
+      // The results list resets on restart, so bank this session's
+      // finals before they disappear.
+      if (sessionFinal.current) {
+        carried.current = (carried.current + sessionFinal.current).trimEnd() + " ";
+        sessionFinal.current = "";
+      }
+
       if (!wanted.current) {
         setListening(false);
         return;
       }
-      try {
-        r.start();
-      } catch {
-        wanted.current = false;
-        setListening(false);
-      }
+
+      // A restart inside onend can throw or loop; a beat of delay
+      // keeps it to one chime rather than a stutter.
+      window.setTimeout(() => {
+        if (!wanted.current) return;
+        try {
+          r.start();
+        } catch {
+          wanted.current = false;
+          setListening(false);
+        }
+      }, 250);
     };
 
     r.onerror = () => {
@@ -639,7 +649,8 @@ function useDictation(onTranscript: (text: string) => void) {
     cb.current = onTranscript;
     const r = get();
     if (!r) return;
-    settled.current = "";
+    carried.current = "";
+    sessionFinal.current = "";
     wanted.current = true;
     try {
       r.start();

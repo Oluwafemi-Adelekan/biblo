@@ -40,20 +40,27 @@ export default async function Expenses({
 
   return (
     <div className="pb-6">
-      <Band tone="sage" pad="none" className="px-5 pt-6 pb-5">
-        <div className="flex items-center justify-between">
-          <Label as="h1" tone="dim">
-            {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
-          </Label>
-          <MonthPicker
-            current={m.month}
-            counts={index.counts}
-            activeMonth={index.activeMonth}
-            demoMonth={index.demoMonth}
-            basePath="/expenses"
-          />
-        </div>
-        <div className="mt-2">
+      {/* Only the title row sticks. Pinning the whole block, chart
+          and filters included, would eat half the screen. */}
+      <Band
+        tone="sage"
+        pad="none"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3"
+      >
+        <Label as="h1" tone="dim">
+          {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
+        </Label>
+        <MonthPicker
+          current={m.month}
+          counts={index.counts}
+          activeMonth={index.activeMonth}
+          demoMonth={index.demoMonth}
+          basePath="/expenses"
+        />
+      </Band>
+
+      <Band tone="sage" pad="none" className="px-5 pb-5">
+        <div>
           <Amount value={out} size="headline" />
         </div>
         <p className="mt-1.5 text-label uppercase text-ink/50">

@@ -48,7 +48,7 @@ export function Amount({
   value: number;
   size?: "display" | "headline" | "title" | "body";
   sign?: boolean;
-  tone?: "default" | "invert" | "ember";
+  tone?: "default" | "invert" | "ember" | "positive";
   className?: string;
 }) {
   const { lead, head, tail } = nairaParts(value, { sign });
@@ -62,6 +62,7 @@ export function Amount({
     default: ["text-ink", "text-ink/40"],
     invert: ["text-bone", "text-bone/45"],
     ember: ["text-ember", "text-ember/45"],
+    positive: ["text-positive", "text-positive/45"],
   } as const;
   /* Tabular figures give every digit the width of a zero, which makes a
      large standalone number look loose. They earn their place only in

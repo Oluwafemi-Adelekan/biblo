@@ -45,7 +45,12 @@ export default async function ExpenseDetail({
         </div>
 
         <div className="mt-5 text-center">
-          <Amount value={e.amountNGN} size="display" sign />
+          <Amount
+            value={e.amountNGN}
+            size="display"
+            sign
+            tone={e.amountNGN > 0 ? "positive" : "default"}
+          />
           <p className="mt-3 text-title">{e.label}</p>
           <p className="mt-1 text-label uppercase text-ink/55">
             {category?.name ?? "Uncategorised"}

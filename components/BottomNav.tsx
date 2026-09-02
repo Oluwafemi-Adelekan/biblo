@@ -20,7 +20,7 @@ export function BottomNav({ pending }: { pending: number }) {
 
   return (
     <nav
-      className="sticky bottom-0 z-20 border-t border-rule bg-bone"
+      className="shrink-0 border-t border-rule bg-bone"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Main"
     >

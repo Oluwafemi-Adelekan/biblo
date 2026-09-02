@@ -11,7 +11,11 @@ export default async function ChatPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <Band tone="sage" pad="none" className="flex items-center justify-between px-5 py-4">
+      <Band
+        tone="sage"
+        pad="none"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 py-4"
+      >
         <Label as="h1" tone="dim">
           Biblo
         </Label>
