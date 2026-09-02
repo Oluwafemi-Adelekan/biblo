@@ -7,6 +7,7 @@ import { CategoryBars } from "@/components/charts/CategoryBars";
 import { PaceChart } from "@/components/charts/PaceChart";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
+import { MaskIncome } from "@/components/MaskIncome";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { monthLabel, shortNaira } from "@/lib/format";
 
@@ -71,7 +72,7 @@ export default async function Home({
           <span>
             <Label tone="dim">Income</Label>
             <p className="tnum mt-1 text-meta font-semibold">
-              {shortNaira(m.budget.income)}
+              <MaskIncome>{shortNaira(m.budget.income)}</MaskIncome>
             </p>
           </span>
         </div>

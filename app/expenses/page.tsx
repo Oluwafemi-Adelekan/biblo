@@ -5,6 +5,7 @@ import { Comb } from "@/components/ui/Comb";
 import { Amount, Label } from "@/components/ui/Text";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
+import { MaskIncome } from "@/components/MaskIncome";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { dayLabel, monthLabel, shortNaira } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -64,7 +65,13 @@ export default async function Expenses({
 
       <Band tone="sage" pad="none" className="px-5 pb-5">
         <div>
-          <Amount value={out} size="headline" tone={incoming ? "positive" : "default"} />
+          {incoming ? (
+            <MaskIncome className="text-headline text-ink/35">
+              <Amount value={out} size="headline" tone="positive" />
+            </MaskIncome>
+          ) : (
+            <Amount value={out} size="headline" />
+          )}
         </div>
         <p className="mt-1.5 text-label uppercase text-ink/50">
           {rows.length} {rows.length === 1 ? "entry" : "entries"}
@@ -135,7 +142,14 @@ export default async function Expenses({
               <div className="flex items-center justify-between bg-sage-dim px-5 py-2">
                 <Label tone="dim">{dayLabel(date)}</Label>
                 <span className="tnum text-label uppercase text-ink/55">
-                  {shortNaira(dayTotal)}
+                  {/* On the income view this is an income sum too. */}
+                  {incoming ? (
+                    <MaskIncome className="text-ink/40">
+                      {shortNaira(dayTotal)}
+                    </MaskIncome>
+                  ) : (
+                    shortNaira(dayTotal)
+                  )}
                 </span>
               </div>
               <div className="divide-y divide-rule border-y border-rule bg-bone">

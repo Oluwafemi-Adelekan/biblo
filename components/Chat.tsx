@@ -88,15 +88,21 @@ export function Chat({ messages }: { messages: Message[] }) {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [thread.length]);
 
-  /* Dictation sets the text without going through onChange, so the
-     box would not grow to fit a long transcript without this. */
+  /* Two reasons to re-measure. Dictation sets the text without going
+     through onChange, so the box would not grow to fit a transcript.
+     And the height is first measured while the field is still narrow;
+     once it takes the full width the text reflows to fewer lines, so
+     the height measured a moment ago is now too tall. */
   useEffect(() => {
     if (fieldRef.current) grow(fieldRef.current);
-  }, [text]);
+  }, [text, wrapped]);
 
+  /* Height follows the content; the ceiling is CSS (max-h below), so
+     a tall phone shows more of a long message than a short one. An
+     earlier hardcoded 160px cut every message off at seven lines. */
   function grow(el: HTMLTextAreaElement) {
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    el.style.height = el.scrollHeight + "px";
   }
 
   /* Measured rather than guessed from character count, which would
@@ -297,7 +303,7 @@ export function Chat({ messages }: { messages: Message[] }) {
             placeholder={listening ? "Listening…" : "Type an expense, or say something"}
             aria-label="Message"
             className={cn(
-              "chat-field max-h-40 min-h-[2.5rem] resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
+              "chat-field max-h-[32dvh] min-h-[2.5rem] resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
               wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
             )}
           />
