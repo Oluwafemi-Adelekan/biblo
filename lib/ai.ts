@@ -111,9 +111,9 @@ WHO YOU ARE
 Plain-spoken, warm, quick. Short sentences. No emoji, no exclamation marks, no corporate filler, never "As an AI". Talk about whatever he brings up - you are his assistant, not a form. When money comes up, use the real figures below, never generalities.
 
 WHAT YOU CAN DO
-1. Converse (verdict "chat"). Questions, thinking out loud, advice. If a request is ambiguous - you cannot tell which entry he means, or what he wants changed - ask him, as "chat", rather than guessing.
+1. Converse (verdict "chat"). Questions, thinking out loud, advice. If a request is ambiguous - you cannot tell which entry he means, or what he wants changed - ask him, as "chat", rather than guessing. You can search the web: use it for current, checkable facts - market prices, brands, fuel and electricity rates, where to buy things, what something should cost. Mention where a figure came from in passing, naturally. Never use the web to fill in HIS money: his amounts, dates and receipts come only from him.
 2. File money that happened (verdict "file", expenses[]): receipts, bank screenshots, dictated spending, money received. One message can hold several; file each.
-3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless he corrects a figure. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means. When Femi tells you what something is or what it should say, that IS the confirmation - make the edit right away. Never defer to "verify" what he just told you, and never promise to look anything up online: you cannot browse the internet.
+3. Change entries he asks you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless he corrects a figure. Use the exact id from RECENTLY FILED. Only edit when he clearly asked for it and you are confident which entry he means. When Femi tells you what something is or what it should say, that IS the confirmation - make the edit right away; never defer to "verify" what he just told you. If checking a name or price on the web genuinely helps, search now, in this same turn, and file the result - never promise to look it up later.
 4. Delete entries (verdict "file", deletes[]): only when he clearly asks you to remove a specific entry, and only ids from RECENTLY FILED. If you are not certain which one he means, ask first.
 5. Everything else you do shortly (verdict "defer"): changing budgets, caps or categories, PDFs and spreadsheets he sent, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability. Do the work NOW when it is within 1-4; "shortly" is only for what genuinely is not. Never promise features the app does not have (exports, reminders, reports as documents); if he asks for one, say you'll look into it.
 
@@ -140,7 +140,7 @@ FILING RULES
 - Labels are short names, not sentences.
 - If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
-Respond with ONLY a JSON object, no markdown fences:
+Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
 {"verdict":"file"|"chat"|"defer","reason":"background note, only when deferring","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what Femi sees"}`;
 }
 
@@ -155,19 +155,23 @@ export async function readWithAI(input: {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
   const content: object[] = [];
-  if (input.text) content.push({ type: "text", text: input.text });
+  if (input.text) content.push({ type: "input_text", text: input.text });
   if (!input.text && input.images.length === 0) {
     return { kind: "defer", reason: "Nothing readable in the message." };
   }
   for (const img of input.images) {
     content.push({
-      type: "image_url",
-      image_url: { url: `data:${img.type};base64,${img.base64}` },
+      type: "input_image",
+      image_url: `data:${img.type};base64,${img.base64}`,
     });
   }
 
+  /* The Responses API, because that is where the web_search tool
+     lives - the model can check a price or a product name mid-turn.
+     Search is incompatible with JSON mode, so the JSON contract is
+     enforced by the prompt and defended in the parse below. */
   const res = await fetch(
-    `${process.env.AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions`,
+    `${process.env.AZURE_OPENAI_ENDPOINT}/openai/v1/responses`,
     {
       method: "POST",
       headers: {
@@ -176,9 +180,9 @@ export async function readWithAI(input: {
       },
       body: JSON.stringify({
         model: process.env.AZURE_OPENAI_DEPLOYMENT,
-        response_format: { type: "json_object" },
-        max_completion_tokens: 4000,
-        messages: [
+        tools: [{ type: "web_search" }],
+        max_output_tokens: 4000,
+        input: [
           { role: "system", content: prompt(input.categories, input.context, today) },
           { role: "user", content },
         ],
@@ -193,8 +197,18 @@ export async function readWithAI(input: {
   let parsed: z.infer<typeof AiResult>;
   try {
     const body = await res.json();
-    const raw = body?.choices?.[0]?.message?.content ?? "";
-    parsed = AiResult.parse(JSON.parse(raw));
+    const raw: string = (body?.output ?? [])
+      .filter((o: { type?: string }) => o.type === "message")
+      .map((o: { content?: { text?: string }[] }) =>
+        (o.content ?? []).map((c) => c.text ?? "").join(""),
+      )
+      .join("");
+    /* Belt and braces: strip fences and take the outermost object,
+       since prompt-enforced JSON can arrive with wrapping. */
+    const first = raw.indexOf("{");
+    const last = raw.lastIndexOf("}");
+    if (first < 0 || last <= first) throw new Error("no JSON in output");
+    parsed = AiResult.parse(JSON.parse(raw.slice(first, last + 1)));
   } catch {
     return { kind: "defer", reason: "The assistant's answer did not parse." };
   }
