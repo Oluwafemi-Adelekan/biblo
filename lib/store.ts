@@ -117,21 +117,24 @@ export async function addMessage(input: {
 
 /* --- files ----------------------------------------------------- */
 
-/** Stores an upload in the private bucket and returns the object key.
- *  Nothing is ever made public; files are served back through
- *  /api/file, which keeps them behind the app's own door. */
-export async function putFile(file: File): Promise<string> {
-  const ext = (/\.([A-Za-z0-9]{1,8})$/.exec(file.name)?.[1] ?? "bin").toLowerCase();
+/** A one-time URL the browser can PUT a file straight to.
+ *
+ *  Files do not pass through this app any more. A Vercel function
+ *  caps its request body at 4.5MB, which is smaller than most photos
+ *  a phone takes, so routing uploads through it failed for exactly
+ *  the files most worth sending. The browser now talks to Supabase
+ *  Storage directly; the bucket stays private, and reads still come
+ *  back through /api/file. */
+export async function signUpload(name: string) {
+  const ext = (/\.([A-Za-z0-9]{1,8})$/.exec(name)?.[1] ?? "bin").toLowerCase();
   const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const { error } = await files()
+  const { data, error } = await files()
     .storage.from(BUCKET)
-    .upload(key, file, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    });
-  if (error) boom("store that file", error);
-  return key;
+    .createSignedUploadUrl(key);
+  if (error) boom("prepare that upload", error);
+
+  return { key, url: data.signedUrl };
 }
 
 export async function getFile(key: string) {

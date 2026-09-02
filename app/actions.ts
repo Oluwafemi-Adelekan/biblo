@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { getCategories } from "@/lib/data";
 import { parseEntry } from "@/lib/parse";
-import { addExpense, addMessage, deleteExpense, saveBudget, addCategory } from "@/lib/store";
+import {
+  addCategory,
+  addExpense,
+  addMessage,
+  deleteExpense,
+  saveBudget,
+  signUpload,
+} from "@/lib/store";
 import { Attachment } from "@/lib/schema";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
@@ -82,6 +89,47 @@ export async function sendMessage(_prev: unknown, form: FormData) {
 
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+/** Anything you might reasonably have a receipt in. */
+const ALLOWED = [
+  "image/",
+  "application/pdf",
+  "text/",
+  "application/json",
+  "application/vnd.openxmlformats-officedocument",
+  "application/vnd.ms-excel",
+  "application/msword",
+  "application/csv",
+];
+
+/** Supabase's own per-file ceiling. Nothing to do with Vercel now. */
+const MAX = 25 * 1024 * 1024;
+
+export async function prepareUploads(
+  wanted: { name: string; type: string; size: number }[],
+) {
+  if (wanted.length === 0 || wanted.length > 10) {
+    return { ok: false as const, error: "Send between one and ten files." };
+  }
+
+  const targets = [];
+  for (const f of wanted) {
+    if (f.size > MAX) {
+      return {
+        ok: false as const,
+        error: `${f.name} is ${(f.size / 1_048_576).toFixed(1)}MB. The limit is 25MB.`,
+      };
+    }
+    const type = f.type || "application/octet-stream";
+    if (!ALLOWED.some((a) => type.startsWith(a))) {
+      return { ok: false as const, error: `Cannot take ${type} yet.` };
+    }
+    const { key, url } = await signUpload(f.name);
+    targets.push({ key, url, name: f.name, type, size: f.size });
+  }
+
+  return { ok: true as const, targets };
 }
 
 export async function removeExpense(id: string) {

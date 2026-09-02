@@ -22,7 +22,7 @@ import {
 } from "@phosphor-icons/react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
-import { sendMessage } from "@/app/actions";
+import { prepareUploads, sendMessage } from "@/app/actions";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
 import { joinTranscript, readResults } from "@/lib/transcript";
@@ -38,6 +38,31 @@ import { joinTranscript, readResults } from "@/lib/transcript";
    ============================================================ */
 
 type Pending = { file: File; url?: string; error?: string };
+
+/* One retry, because a dropped connection on a phone is usually a
+   moment rather than a state. Returns why it failed rather than a
+   bare boolean, so the message can say something useful. */
+async function put(url: string, file: File): Promise<{ ok: boolean; why: string }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "PUT",
+        body: file,
+        headers: { "content-type": file.type || "application/octet-stream" },
+      });
+      if (res.ok) return { ok: true, why: "" };
+      if (attempt === 1) {
+        return { ok: false, why: `The storage service said ${res.status}.` };
+      }
+    } catch {
+      if (attempt === 1) {
+        return { ok: false, why: "The connection dropped." };
+      }
+    }
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  return { ok: false, why: "" };
+}
 
 /** The id the in-flight copy of your message carries. */
 const PENDING_ID = "__sending__";
@@ -205,18 +230,43 @@ export function Chat({ messages }: { messages: Message[] }) {
       });
 
       try {
-        let uploaded: Attachment[] = [];
+        const uploaded: Attachment[] = [];
+
         if (sentFiles.length > 0) {
-          const body = new FormData();
-          for (const f of sentFiles) body.append("files", f.file);
-          const res = await fetch("/api/upload", { method: "POST", body });
-          const json = await res.json();
-          if (!res.ok) {
-            setError(json.error ?? "Upload failed.");
+          const prepared = await prepareUploads(
+            sentFiles.map((f) => ({
+              name: f.file.name,
+              type: f.file.type,
+              size: f.file.size,
+            })),
+          );
+          if (!prepared.ok) {
+            setError(prepared.error);
             restore();
             return;
           }
-          uploaded = json.files;
+
+          /* Straight to storage, not through this app. A Vercel
+             function caps its body at 4.5MB, which is under what a
+             phone camera produces, so the photos most worth sending
+             were the ones that failed. */
+          for (let i = 0; i < prepared.targets.length; i++) {
+            const t = prepared.targets[i];
+            const res = await put(t.url, sentFiles[i].file);
+            if (!res.ok) {
+              setError(
+                `Could not upload ${t.name}. ${res.why} Your message is still in the box.`,
+              );
+              restore();
+              return;
+            }
+            uploaded.push({
+              name: t.name,
+              type: t.type,
+              size: t.size,
+              url: `/api/file/${t.key}`,
+            });
+          }
         }
 
         const form = new FormData();
@@ -228,8 +278,15 @@ export function Chat({ messages }: { messages: Message[] }) {
           setError(r.error);
           restore();
         }
-      } catch {
-        setError("Could not reach the server. Is it still running?");
+      } catch (e) {
+        /* Say what actually went wrong. The old message asked whether
+           the server was still running, which is meaningless on
+           Vercel and told nobody anything. */
+        setError(
+          navigator.onLine
+            ? `Something went wrong sending that: ${(e as Error).message ?? "unknown error"}. Your message is still in the box.`
+            : "You are offline. Your message is still in the box.",
+        );
         restore();
       } finally {
         inFlight.current = false;
