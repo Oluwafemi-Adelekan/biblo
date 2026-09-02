@@ -3,7 +3,7 @@ import { Wordmark } from "@/components/ui/Text";
 import { Logo } from "@/components/ui/Logo";
 import { Chat } from "@/components/Chat";
 import { RefreshWhilePending } from "@/components/RefreshWhilePending";
-import { getMessages, getMonth } from "@/lib/data";
+import { getCategories, getExpenses, getMessages, getMonth } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 /* The send action runs on this route, and the reader's work rides on
@@ -12,8 +12,36 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function ChatPage() {
-  const [messages, m] = await Promise.all([getMessages(), getMonth()]);
+  const [messages, m, all, cats] = await Promise.all([
+    getMessages(),
+    getMonth(),
+    getExpenses(),
+    getCategories(),
+  ]);
   const waiting = m.pending.length;
+
+  /* Messages that filed or changed an expense carry its id; the
+     widget under them needs the substance too, so look each one up
+     once here where the data lives. */
+  const catName = new Map(cats.map((c) => [c.id, c.name]));
+  const expenses: Record<
+    string,
+    { label: string; amount: number; date: string; category: string; items: number }
+  > = {};
+  for (const msg of messages) {
+    const id = msg.expenseId;
+    if (!id || expenses[id]) continue;
+    const e = all.find((x) => x.id === id);
+    if (e) {
+      expenses[id] = {
+        label: e.label,
+        amount: e.amountNGN,
+        date: e.date,
+        category: catName.get(e.categoryId) ?? e.categoryId,
+        items: e.items?.length ?? 0,
+      };
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -29,7 +57,7 @@ export default async function ChatPage() {
         {/* No count tag: the thread itself shows work in motion. */}
       </Band>
 
-      <Chat messages={messages} />
+      <Chat messages={messages} expenses={expenses} />
       <RefreshWhilePending active={waiting > 0} />
     </div>
   );

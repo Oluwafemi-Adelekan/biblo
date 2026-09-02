@@ -12,16 +12,20 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import {
+  ArrowSquareOut,
   ArrowUp,
   Camera,
+  CaretDown,
   CircleNotch,
   FileText,
   Microphone,
   Plus,
+  Receipt,
   Stop,
   UploadSimple,
   X,
 } from "@phosphor-icons/react";
+import { dayLabel, naira } from "@/lib/format";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
 import { prepareUploads, sendMessage } from "@/app/actions";
@@ -70,7 +74,21 @@ async function put(url: string, file: File): Promise<{ ok: boolean; why: string 
 /** The id the in-flight copy of your message carries. */
 const PENDING_ID = "__sending__";
 
-export function Chat({ messages }: { messages: Message[] }) {
+export type ExpenseLite = {
+  label: string;
+  amount: number;
+  date: string;
+  category: string;
+  items: number;
+};
+
+export function Chat({
+  messages,
+  expenses = {},
+}: {
+  messages: Message[];
+  expenses?: Record<string, ExpenseLite>;
+}) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +97,8 @@ export function Chat({ messages }: { messages: Message[] }) {
   const [attachOpen, setAttachOpen] = useState(false);
   /* An image tapped anywhere in the chat opens full screen. */
   const [viewer, setViewer] = useState<string | null>(null);
+  /* The one reply that just arrived and should type itself out. */
+  const [revealId, setRevealId] = useState<string | null>(null);
   /* Once the message wraps, the field takes a row of its own and the
      buttons drop beneath it, the way every chat composer does. */
   const [wrapped, setWrapped] = useState(false);
@@ -157,7 +177,11 @@ export function Chat({ messages }: { messages: Message[] }) {
     const tail = messages.at(-1);
     if (tail && tail.id !== lastSeen.current) {
       lastSeen.current = tail.id;
-      if (tail.from !== "you") receivedSound();
+      if (tail.from !== "you") {
+        receivedSound();
+        // A reply that lands while you watch types itself out.
+        setRevealId(tail.id);
+      }
     }
   }, [messages]);
 
@@ -241,8 +265,9 @@ export function Chat({ messages }: { messages: Message[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function take(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? []);
+  /* One door for files however they arrive - picked, shot, pasted. */
+  function stage(picked: File[]) {
+    if (picked.length === 0) return;
     setFiles((p) => [
       ...p,
       ...picked.map((file) => ({
@@ -253,6 +278,10 @@ export function Chat({ messages }: { messages: Message[] }) {
           : undefined,
       })),
     ]);
+  }
+
+  function take(e: React.ChangeEvent<HTMLInputElement>) {
+    stage(Array.from(e.target.files ?? []));
     e.target.value = "";
   }
 
@@ -399,6 +428,8 @@ export function Chat({ messages }: { messages: Message[] }) {
               message={m}
               sending={m.id === PENDING_ID}
               onView={setViewer}
+              expense={m.expenseId ? expenses[m.expenseId] : undefined}
+              reveal={m.id === revealId}
             />
           ))
         )}
@@ -514,6 +545,17 @@ export function Chat({ messages }: { messages: Message[] }) {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 send();
+              }
+            }}
+            onPaste={(e) => {
+              /* A screenshot pasted straight into the box stages
+                 like any picked photo. Text pastes fall through. */
+              const imgs = Array.from(e.clipboardData?.files ?? []).filter(
+                (f) => f.type.startsWith("image/"),
+              );
+              if (imgs.length > 0) {
+                e.preventDefault();
+                stage(imgs);
               }
             }}
             enterKeyHint="send"
@@ -698,10 +740,14 @@ function Bubble({
   message: m,
   sending = false,
   onView,
+  expense,
+  reveal = false,
 }: {
   message: Message;
   sending?: boolean;
   onView?: (url: string) => void;
+  expense?: ExpenseLite;
+  reveal?: boolean;
 }) {
   const mine = m.from === "you";
   const fromClaude = m.from === "claude";
@@ -770,7 +816,7 @@ function Bubble({
           mine ? (
             <p className="whitespace-pre-wrap text-body">{m.text}</p>
           ) : (
-            <Reply text={m.text} />
+            <Reply text={m.text} reveal={reveal} id={m.id} />
           )
         ) : null}
       </div>
@@ -794,16 +840,13 @@ function Bubble({
               minute: "2-digit",
               hour12: true,
             })}
-        {!sending && mine && m.status === "pending" ? " · waiting" : ""}
-        {m.expenseId && !mine ? (
-          <Link
-            href={`/expenses/${m.expenseId}`}
-            className="underline underline-offset-2 hover:text-ink"
-          >
-            open
-          </Link>
-        ) : null}
       </span>
+
+      {/* What this message did to the money, as a thing you can
+          open rather than a word you have to spot. */}
+      {expense && m.expenseId && !mine ? (
+        <ExpenseCard id={m.expenseId} e={expense} />
+      ) : null}
     </div>
   );
 }
@@ -857,7 +900,27 @@ const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 const CITATION_GROUP =
   /\s*\(\s*((?:\[[^\]]+\]\(https?:\/\/[^\s)]+\)(?:[,;]\s*)?)+)\)/g;
 
-function Reply({ text }: { text: string }) {
+/** Replies that already typed themselves out once, so a refresh
+ *  never replays the reveal. */
+const REVEALED = new Set<string>();
+
+const favicon = (url: string) => {
+  try {
+    return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`;
+  } catch {
+    return "";
+  }
+};
+
+function Reply({
+  text,
+  reveal = false,
+  id = "",
+}: {
+  text: string;
+  reveal?: boolean;
+  id?: string;
+}) {
   const sources: { label: string; url: string }[] = [];
   const prose = text
     .replace(CITATION_GROUP, (_, group: string) => {
@@ -869,60 +932,197 @@ function Reply({ text }: { text: string }) {
     })
     .replace(/[ \t]+([.,;!?])/g, "$1");
 
-  const parts: React.ReactNode[] = [];
+  /* Tokenised once so the typewriter can cut anywhere without ever
+     showing raw markdown mid-link. */
+  const toks: { text: string; url?: string }[] = [];
   let at = 0;
   for (const m of prose.matchAll(MD_LINK)) {
-    if (m.index > at) parts.push(prose.slice(at, m.index));
-    parts.push(
-      <a
-        key={m.index}
-        href={m[2]}
-        target="_blank"
-        rel="noreferrer"
-        className="underline decoration-ink/35 underline-offset-2 hover:decoration-ink"
-      >
-        {m[1]}
-      </a>,
-    );
+    if (m.index > at) toks.push({ text: prose.slice(at, m.index) });
+    toks.push({ text: m[1], url: m[2] });
     at = m.index + m[0].length;
   }
-  if (at < prose.length) parts.push(prose.slice(at));
+  if (at < prose.length) toks.push({ text: prose.slice(at) });
+  const total = toks.reduce((n, t) => n + t.text.length, 0);
+
+  const wants = reveal && id !== "" && !REVEALED.has(id);
+  const [budget, setBudget] = useState(Number.POSITIVE_INFINITY);
+  const [srcOpen, setSrcOpen] = useState(false);
+
+  /* A reply that lands while you watch types itself out, about a
+     character every 12ms - the reassurance of seeing it happen,
+     without pretending to stream. Layout effect so the full text
+     never flashes first. Reduced motion shows it whole. */
+  useLayoutEffect(() => {
+    if (!wants) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      REVEALED.add(id);
+      return;
+    }
+    setBudget(0);
+    const t0 = Date.now();
+    const iv = window.setInterval(() => {
+      const b = Math.floor((Date.now() - t0) / 12);
+      setBudget(b);
+      if (b >= total) {
+        window.clearInterval(iv);
+        REVEALED.add(id);
+      }
+    }, 35);
+    return () => window.clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wants]);
+
+  const done = budget >= total;
+  const parts: React.ReactNode[] = [];
+  let remaining = budget;
+  toks.forEach((t, i) => {
+    if (remaining <= 0) return;
+    const chunk = t.text.slice(0, Math.min(t.text.length, remaining));
+    remaining -= t.text.length;
+    parts.push(
+      t.url ? (
+        <a
+          key={i}
+          href={t.url}
+          target="_blank"
+          rel="noreferrer"
+          className="underline decoration-ink/35 underline-offset-2 hover:decoration-ink"
+        >
+          {chunk}
+        </a>
+      ) : (
+        <span key={i}>{chunk}</span>
+      ),
+    );
+  });
+
+  /* Three at most, per Femi: past that the row stops informing. */
+  const shown = sources.slice(0, 3);
 
   return (
     <>
       <p className="whitespace-pre-wrap text-body">{parts}</p>
-      {sources.length > 0 ? (
-        <span className="mt-2 flex flex-wrap gap-1.5">
-          {sources.map((s) => {
-            let host = "";
-            try {
-              host = new URL(s.url).hostname.replace(/^www\./, "");
-            } catch {
-              return null;
-            }
-            return (
-              <a
-                key={s.url}
-                href={s.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 border border-rule bg-bone px-2 py-1 text-meta text-ink/70 transition-[background-color] duration-press hover:bg-ink/5"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+      {done && shown.length > 0 ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setSrcOpen((o) => !o)}
+            aria-expanded={srcOpen}
+            className="flex items-center gap-2 text-label uppercase text-ink/55 transition-colors duration-press hover:text-ink"
+          >
+            <span className="flex">
+              {shown.map((s, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+                  key={s.url}
+                  src={favicon(s.url)}
                   alt=""
-                  width={14}
-                  height={14}
-                  className="rounded-[3px]"
+                  width={16}
+                  height={16}
+                  className={cn(
+                    "size-4 rounded-full ring-2 ring-bone",
+                    i > 0 && "-ml-1.5",
+                  )}
                 />
-                {host}
-              </a>
-            );
-          })}
-        </span>
+              ))}
+            </span>
+            {shown.length} {shown.length === 1 ? "source" : "sources"}
+            <CaretDown
+              size={11}
+              weight="bold"
+              className={cn(
+                "transition-transform duration-press ease-out-strong",
+                srcOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {srcOpen ? (
+            <ul className="mt-1.5 border border-rule bg-bone motion-safe:animate-[rise_180ms_var(--ease-out-strong)]">
+              {shown.map((s, i) => {
+                let host = "";
+                try {
+                  host = new URL(s.url).hostname.replace(/^www\./, "");
+                } catch {
+                  return null;
+                }
+                return (
+                  <li key={s.url} className={i > 0 ? "border-t border-rule" : ""}>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2.5 px-3 py-2.5 transition-[background-color] duration-press hover:bg-ink/5"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={favicon(s.url)}
+                        alt=""
+                        width={16}
+                        height={16}
+                        className="size-4 rounded-[3px]"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-meta text-ink underline decoration-ink/25 underline-offset-2">
+                        {s.label}
+                      </span>
+                      <span className="shrink-0 text-label text-ink/45">{host}</span>
+                      <span className="flex size-4 shrink-0 items-center justify-center bg-ink/8 text-label text-ink/60">
+                        {i + 1}
+                      </span>
+                      <ArrowSquareOut size={13} className="shrink-0 text-ink/45" />
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
     </>
+  );
+}
+
+/* ---- what a message did to the money ---------------------------
+   Filed or corrected an entry? The message carries a small card:
+   amount and name at a glance, tap for the rest and the way in. */
+function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1.5 w-full max-w-[85%] border border-rule bg-bone-lift">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+      >
+        <Receipt size={15} className="shrink-0 text-ink/60" />
+        <span className="min-w-0 flex-1 truncate text-meta text-ink">
+          {naira(Math.abs(e.amount), { decimals: 0 })} · {e.label}
+        </span>
+        <CaretDown
+          size={13}
+          weight="bold"
+          className={cn(
+            "shrink-0 text-ink/45 transition-transform duration-press ease-out-strong",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open ? (
+        <div className="border-t border-rule px-3 py-2.5 motion-safe:animate-[rise_180ms_var(--ease-out-strong)]">
+          <p className="text-meta text-ink/70">
+            {e.category} · {dayLabel(e.date)}
+            {e.items > 0 ? ` · ${e.items} items` : ""}
+          </p>
+          <Link
+            href={`/expenses/${id}`}
+            className="mt-2 inline-flex items-center gap-1.5 text-meta font-medium text-ink underline underline-offset-2"
+          >
+            Open
+            <ArrowSquareOut size={13} />
+          </Link>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
