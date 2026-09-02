@@ -359,3 +359,36 @@ textarea::-webkit-scrollbar {
   opacity: 0;
   animation: loading-appear 200ms ease-out 250ms forwards;
 }
+
+/* The indeterminate line under the thinking text: a short segment
+   sweeping a quiet track, from the beui.dev loader family. Reduced
+   motion gets a gentle opacity pulse instead of travel. */
+@keyframes line-sweep {
+  0% { translate: -110% 0; }
+  100% { translate: 410% 0; }
+}
+.thinking-line {
+  position: relative;
+  display: block;
+  width: 76px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: color-mix(in oklab, var(--color-ink) 14%, transparent);
+}
+.thinking-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 26%;
+  border-radius: 1px;
+  background: var(--color-ink);
+  animation: line-sweep 1.15s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking-line::after {
+    animation: pulse-mic 1.4s ease-in-out infinite;
+    translate: 0 0;
+    width: 100%;
+  }
+}

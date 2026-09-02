@@ -14,6 +14,7 @@ import Link from "next/link";
 import {
   ArrowUp,
   Camera,
+  CircleNotch,
   FileText,
   Microphone,
   Plus,
@@ -217,11 +218,26 @@ export function Chat({ messages }: { messages: Message[] }) {
   }
 
   /* One place where text changes, so typing and dictation both keep
-     the layout in step. */
+     the layout in step - and the draft survives leaving the page. */
   function applyText(next: string) {
     setText(next);
     measureWrap(next);
+    try {
+      if (next) localStorage.setItem("biblo-draft", next);
+      else localStorage.removeItem("biblo-draft");
+    } catch {}
   }
+
+  /* Two seconds away or two hours, coming back finds your words
+     where you left them. Sending clears it; a failed send restores
+     it through the same applyText, so the draft follows the truth. */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("biblo-draft");
+      if (saved) applyText(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function take(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -500,9 +516,10 @@ export function Chat({ messages }: { messages: Message[] }) {
             )}
           >
             {working && !text.trim() && files.length === 0 ? (
-              <span
-                aria-hidden="true"
-                className="size-4 rounded-full border-2 border-bone/30 border-t-bone motion-safe:animate-spin"
+              <CircleNotch
+                size={20}
+                weight="bold"
+                className="motion-safe:animate-spin"
               />
             ) : (
               <ArrowUp size={18} weight="bold" />
@@ -695,7 +712,13 @@ function Bubble({
           </ul>
         ) : null}
 
-        {m.text ? <p className="whitespace-pre-wrap text-body">{m.text}</p> : null}
+        {m.text ? (
+          mine ? (
+            <p className="whitespace-pre-wrap text-body">{m.text}</p>
+          ) : (
+            <Reply text={m.text} />
+          )
+        ) : null}
       </div>
 
       <span className="mt-1 flex items-center gap-1.5 px-0.5 text-label uppercase text-ink/40">
@@ -738,6 +761,85 @@ function Bubble({
    single model call the phases cannot be observed from outside, so
    the timing is honest pacing, not telemetry. Past thirty seconds it
    stops pretending to know and just says so. */
+
+/* ---- assistant replies with real links ------------------------
+   The searching reader cites the web in markdown: inline links and
+   trailing "([site](url))" citation groups. Citations leave the
+   prose and become source chips underneath, favicon and domain,
+   the way search products show references; whatever links remain
+   inline become actual links. */
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const CITATION_GROUP =
+  /\s*\(\s*((?:\[[^\]]+\]\(https?:\/\/[^\s)]+\)(?:[,;]\s*)?)+)\)/g;
+
+function Reply({ text }: { text: string }) {
+  const sources: { label: string; url: string }[] = [];
+  const prose = text
+    .replace(CITATION_GROUP, (_, group: string) => {
+      for (const m of group.matchAll(MD_LINK)) {
+        if (!sources.some((s) => s.url === m[2]))
+          sources.push({ label: m[1], url: m[2] });
+      }
+      return "";
+    })
+    .replace(/[ \t]+([.,;!?])/g, "$1");
+
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  for (const m of prose.matchAll(MD_LINK)) {
+    if (m.index > at) parts.push(prose.slice(at, m.index));
+    parts.push(
+      <a
+        key={m.index}
+        href={m[2]}
+        target="_blank"
+        rel="noreferrer"
+        className="underline decoration-ink/35 underline-offset-2 hover:decoration-ink"
+      >
+        {m[1]}
+      </a>,
+    );
+    at = m.index + m[0].length;
+  }
+  if (at < prose.length) parts.push(prose.slice(at));
+
+  return (
+    <>
+      <p className="whitespace-pre-wrap text-body">{parts}</p>
+      {sources.length > 0 ? (
+        <span className="mt-2 flex flex-wrap gap-1.5">
+          {sources.map((s) => {
+            let host = "";
+            try {
+              host = new URL(s.url).hostname.replace(/^www\./, "");
+            } catch {
+              return null;
+            }
+            return (
+              <a
+                key={s.url}
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 border border-rule bg-bone px-2 py-1 text-meta text-ink/70 transition-[background-color] duration-press hover:bg-ink/5"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="rounded-[3px]"
+                />
+                {host}
+              </a>
+            );
+          })}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 const SCRIPT_FILES: [string, number][] = [
   ["Reading what you sent…", 0],
@@ -785,6 +887,9 @@ function ThinkingLine({ hasFiles, since }: { hasFiles: boolean; since: number })
       >
         {script[stage][0]}
       </span>
+      {/* The sweeping line from his beui reference: a short segment
+          crossing a quiet track for as long as the work is open. */}
+      <span aria-hidden="true" className="thinking-line mt-2" />
     </div>
   );
 }
