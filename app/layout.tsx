@@ -24,7 +24,16 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const m = await getMonth();
+  /* This fetch exists to put a dot on the chat tab. If it fails, the
+     right outcome is no dot - not the platform's crash page over the
+     entire app, which is what an unhandled throw here produces. */
+  let pending = 0;
+  try {
+    const m = await getMonth();
+    pending = m.pending.length;
+  } catch {
+    pending = 0;
+  }
 
   return (
     <html lang="en" className={archivo.variable}>
@@ -33,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
             {children}
           </main>
-          <BottomNav pending={m.pending.length} />
+          <BottomNav pending={pending} />
         </div>
       </body>
     </html>

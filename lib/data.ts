@@ -15,42 +15,63 @@ function fail(what: string, error: { message: string }): never {
   throw new Error(`Could not read ${what} from Supabase: ${error.message}`);
 }
 
+/* One transient hiccup - a cold pooler, a dropped packet - was
+   crashing whole pages, because a single failed read threw straight
+   through the server component. Try again once before giving up;
+   most of those failures are a moment, not a state. */
+async function withRetry<T>(go: () => Promise<T>): Promise<T> {
+  try {
+    return await go();
+  } catch {
+    await new Promise((r) => setTimeout(r, 350));
+    return go();
+  }
+}
+
 export const getConfig = cache(async () => Config.parse(config));
 
-export const getCategories = cache(async (): Promise<Category[]> => {
-  const { data, error } = await db()
-    .from("categories")
-    .select("*")
-    .order("sort", { ascending: true });
-  if (error) fail("categories", error);
-  return (data ?? []).map(toCategory);
-});
+export const getCategories = cache(async (): Promise<Category[]> =>
+  withRetry(async () => {
+    const { data, error } = await db()
+      .from("categories")
+      .select("*")
+      .order("sort", { ascending: true });
+    if (error) fail("categories", error);
+    return (data ?? []).map(toCategory);
+  }),
+);
 
-export const getBudgets = cache(async (): Promise<Budget[]> => {
-  const { data, error } = await db().from("budgets").select("*");
-  if (error) fail("budgets", error);
-  return (data ?? []).map(toBudget);
-});
+export const getBudgets = cache(async (): Promise<Budget[]> =>
+  withRetry(async () => {
+    const { data, error } = await db().from("budgets").select("*");
+    if (error) fail("budgets", error);
+    return (data ?? []).map(toBudget);
+  }),
+);
 
-export const getExpenses = cache(async (): Promise<Expense[]> => {
-  const { data, error } = await db()
-    .from("expenses")
-    .select("*")
-    .order("spent_on", { ascending: false })
-    .order("spent_at", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: false });
-  if (error) fail("expenses", error);
-  return (data ?? []).map(toExpense);
-});
+export const getExpenses = cache(async (): Promise<Expense[]> =>
+  withRetry(async () => {
+    const { data, error } = await db()
+      .from("expenses")
+      .select("*")
+      .order("spent_on", { ascending: false })
+      .order("spent_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
+    if (error) fail("expenses", error);
+    return (data ?? []).map(toExpense);
+  }),
+);
 
-export const getMessages = cache(async (): Promise<Message[]> => {
-  const { data, error } = await db()
-    .from("messages")
-    .select("*")
-    .order("sent_at", { ascending: true });
-  if (error) fail("messages", error);
-  return (data ?? []).map(toMessage);
-});
+export const getMessages = cache(async (): Promise<Message[]> =>
+  withRetry(async () => {
+    const { data, error } = await db()
+      .from("messages")
+      .select("*")
+      .order("sent_at", { ascending: true });
+    if (error) fail("messages", error);
+    return (data ?? []).map(toMessage);
+  }),
+);
 
 /* --- derived -------------------------------------------------- */
 

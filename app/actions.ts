@@ -14,8 +14,7 @@ import {
   saveBudget,
   signUpload,
 } from "@/lib/store";
-import { aiConfigured, readWithAI } from "@/lib/ai";
-import { getExpenses } from "@/lib/data";
+import { aiConfigured, readWithAI, type MonthContext } from "@/lib/ai";
 import { Attachment } from "@/lib/schema";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
@@ -77,7 +76,8 @@ export async function sendMessage(_prev: unknown, form: FormData) {
     const msg = await addMessage({ from: "you", text, status: "pending" });
 
     if (aiConfigured()) {
-      await addMessage({ from: "app", text: "Reading that now." });
+      // No ack for text: the assistant's reply lands in a moment and
+      // an ack would just be noise above it.
       after(() => processWithReader(msg.id));
     } else {
       await addMessage({
@@ -141,18 +141,51 @@ async function processWithReader(messageId: string) {
       });
     }
 
-    const recent = (await getExpenses()).slice(0, 15);
+    const { getMonth } = await import("@/lib/data");
+    const m = await getMonth();
+    const context: MonthContext = {
+      month: m.month,
+      spent: m.spent,
+      budgetTotal: m.budget.total,
+      income: m.budget.income,
+      earned: m.earned,
+      categoryLines: m.categoryRows
+        .filter((r) => r.total > 0 || r.cap > 0)
+        .map(
+          (r) =>
+            `${r.category.name}: ${r.total.toLocaleString()} of ${r.cap.toLocaleString()}${r.over ? " OVER" : ""}`,
+        ),
+      recentLines: (await (await import("@/lib/data")).getExpenses())
+        .slice(0, 15)
+        .map(
+          (e) =>
+            `${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`,
+        ),
+    };
+
     const reading = await readWithAI({
       text: msg.text,
       images,
       categories: cats,
-      recent,
+      context,
     });
 
+    // Pure conversation: reply and close it out; nothing for Claude.
+    if (reading.kind === "chat") {
+      await completeMessage(messageId);
+      await addMessage({ from: "ai", text: reading.reply });
+      revalidatePath("/", "layout");
+      return;
+    }
+
     if (reading.kind === "defer") {
+      // He sees the assistant's own words; the terse reason waits in
+      // the pending queue for Claude.
       await addMessage({
         from: "ai",
-        text: `Left for Claude: ${reading.reason}`,
+        text:
+          reading.reply ??
+          "I'll leave that one for Claude - it needs a hand I don't have.",
       });
       revalidatePath("/", "layout");
       return;
