@@ -258,3 +258,21 @@ body {
     opacity: 0.62;
   }
 }
+
+/* --- the chat scrolls without saying so -----------------------
+   A visible scrollbar makes a conversation look like a document.
+   The scrolling itself is untouched: this hides the bar, nothing
+   else. Scoped to the chat via :has() so the scroll container in
+   the layout can stay a server component, and so every other
+   screen keeps its bar. */
+
+main:has(.chat-root) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+main:has(.chat-root)::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}

@@ -14,8 +14,8 @@ export function UnlockForm({ to }: { to: string }) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-sage px-6">
-      <span className="flex items-center gap-2.5">
-        <Logo size={30} className="text-ink" />
+      <span className="flex items-center gap-1">
+        <Logo size={42} className="text-ink" />
         <Wordmark text="biblo" className="text-[2rem]" />
       </span>
 
