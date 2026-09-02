@@ -20,10 +20,6 @@ export default async function Home({
 }) {
   const { month } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
-  /* Two different states that were being added together, so the
-     home screen said 2 and the screen it linked to said 1. Messages
-     wait on Claude; flagged rows wait on Femi. */
-  const waitingOnClaude = m.pending.length;
   const needsALook = m.needsCheck.length;
 
   return (
@@ -78,21 +74,8 @@ export default async function Home({
         </div>
       </Band>
 
-      {/* ---- waiting on Claude ---------------------------------- */}
-      {waitingOnClaude > 0 ? (
-        <Link
-          href="/chat"
-          className="flex items-center justify-between gap-3 bg-amber px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-amber-deep active:scale-[0.99]"
-        >
-          <span className="flex items-center gap-2.5">
-            <WarningDiamond size={15} weight="fill" />
-            <span className="text-meta font-medium">
-              {waitingOnClaude} being sorted
-            </span>
-          </span>
-          <CaretRight size={16} weight="bold" />
-        </Link>
-      ) : null}
+      {/* Open work shows as a live state in the chat itself, not as
+          a count pinned here. Femi asked for the tag to go. */}
 
       {needsALook > 0 ? (
         <Link

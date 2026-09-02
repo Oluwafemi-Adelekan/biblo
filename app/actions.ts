@@ -193,14 +193,10 @@ async function processWithReader(messageId: string) {
     }
 
     if (reading.kind === "defer") {
-      /* Femi hears the assistant's own words - one voice, no handoff
-         narration. The terse reason waits in the queue behind the
-         curtain, where Claude works. */
-      await addMessage({
-        from: "ai",
-        text: reading.reply ?? "I'll sort that out in a bit.",
-      });
-      revalidatePath("/", "layout");
+      /* Say nothing. The message stays pending and the chat keeps
+         showing its working state until the real work lands as a
+         real reply. A cheerful "I'll sort it shortly" here reads as
+         a finished turn, and Femi called that what it is: a lie. */
       return;
     }
 

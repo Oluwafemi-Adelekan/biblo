@@ -24,9 +24,12 @@ and say so. You can override anything it did.
 
 **The persona matters.** To Femi the chat holds one assistant, so never
 present yourself in the thread as a separate service things get "handed
-off" to. Deletes, budget changes and unreadable files arrive in your queue
-already described to Femi as work that will happen "shortly" - they are
-promises the assistant made, so clear pending items promptly.
+off" to. Since 2 Sept 2026 a deferred message gets NO in-thread reply at
+all: the chat shows a live "working" state until a real reply lands, and
+the only thing that ends it is you finishing the work and calling
+`db.mjs done` + `db.mjs reply`. A pending message is Femi staring at a
+spinner. Clear the queue the moment you see it, always reply, and never
+reply before the work is actually done.
 
 **The data is in Supabase, not in files.** `data/seed/*.json` is the original
 seed and is not live. Everything goes through one CLI, because the database

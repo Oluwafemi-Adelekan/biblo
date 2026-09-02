@@ -4,7 +4,6 @@ import { Logo } from "@/components/ui/Logo";
 import { Chat } from "@/components/Chat";
 import { RefreshWhilePending } from "@/components/RefreshWhilePending";
 import { getMessages, getMonth } from "@/lib/data";
-import { aiConfigured } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 /* The send action runs on this route, and the reader's work rides on
@@ -27,14 +26,10 @@ export default async function ChatPage() {
           <Logo size={24} className="text-ink" />
           <Wordmark text="biblo" className="text-[1.15rem]" />
         </span>
-        {waiting > 0 ? (
-          <span className="bg-amber px-2.5 py-1 text-label uppercase text-ink">
-            {waiting} being sorted
-          </span>
-        ) : null}
+        {/* No count tag: the thread itself shows work in motion. */}
       </Band>
 
-      <Chat messages={messages} aiOn={aiConfigured()} />
+      <Chat messages={messages} />
       <RefreshWhilePending active={waiting > 0} />
     </div>
   );

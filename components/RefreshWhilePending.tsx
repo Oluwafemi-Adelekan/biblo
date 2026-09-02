@@ -4,11 +4,11 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 /* The reader answers seconds after a message lands, but a server
-   component does not know that. While something is waiting on the
-   reader, ask the server again every few seconds; stop the moment
-   nothing is pending, or after two minutes, whichever comes first.
-   Two minutes is the cap because if the reader has not answered by
-   then it has deferred to Claude, and Claude is not fast. */
+   component does not know that. While something is waiting, ask the
+   server again: every few seconds at first, then at a walking pace
+   for as long as the work is still open - deferred work can take a
+   while, and the chat now shows a live working state until the real
+   reply lands, so the poll must outlive the quick case. */
 
 export function RefreshWhilePending({ active }: { active: boolean }) {
   const router = useRouter();
@@ -20,12 +20,21 @@ export function RefreshWhilePending({ active }: { active: boolean }) {
 
     const tick = () => {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() - startedAt.current > 120_000) return;
       router.refresh();
     };
 
-    const id = window.setInterval(tick, 4000);
-    return () => window.clearInterval(id);
+    const fast = window.setInterval(() => {
+      if (Date.now() - startedAt.current > 120_000) return;
+      tick();
+    }, 4000);
+    const slow = window.setInterval(() => {
+      if (Date.now() - startedAt.current <= 120_000) return;
+      tick();
+    }, 30_000);
+    return () => {
+      window.clearInterval(fast);
+      window.clearInterval(slow);
+    };
   }, [active, router]);
 
   return null;

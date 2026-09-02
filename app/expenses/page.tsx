@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CaretRight, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { Band } from "@/components/ui/Band";
 import { Comb } from "@/components/ui/Comb";
 import { Amount, Label } from "@/components/ui/Text";
@@ -107,21 +106,6 @@ export default async function Expenses({
 
       {/* The thread is where pending things live; this just points
           at it rather than listing them twice. */}
-      {m.pending.length > 0 && !active ? (
-        <Link
-          href="/chat"
-          className="flex items-center justify-between gap-3 bg-amber px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-amber-deep active:scale-[0.99]"
-        >
-          <span className="flex items-center gap-2.5">
-            <WarningDiamond size={15} weight="fill" />
-            <span className="text-meta font-medium">
-              {m.pending.length} being sorted
-            </span>
-          </span>
-          <CaretRight size={16} weight="bold" />
-        </Link>
-      ) : null}
-
       {rows.length === 0 ? (
         <Band tone="bone" pad="lg" className="text-center">
           <p className="text-title">

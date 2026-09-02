@@ -69,7 +69,7 @@ async function put(url: string, file: File): Promise<{ ok: boolean; why: string 
 /** The id the in-flight copy of your message carries. */
 const PENDING_ID = "__sending__";
 
-export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean }) {
+export function Chat({ messages }: { messages: Message[] }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -339,19 +339,15 @@ export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean })
     });
   }
 
-  const lastYouAt = (() => {
-    for (let i = thread.length - 1; i >= 0; i--) {
-      if (thread[i].from === "you") return i;
-    }
-    return -1;
-  })();
-  const thinking =
-    aiOn &&
-    lastYouAt >= 0 &&
-    thread[lastYouAt].status === "pending" &&
-    !thread
-      .slice(lastYouAt + 1)
-      .some((m) => m.from === "ai" || m.from === "claude");
+  /* Work is open until it is actually done. The line under the thread
+     stays up for as long as any of Femi's messages is still pending,
+     through the quick read and through the long dig alike, and only a
+     real reply ends it. The clock runs from the message's own send
+     time, so a reload does not reset the story. */
+  const oldestPending = thread.find(
+    (m) => m.from === "you" && m.status === "pending" && m.id !== PENDING_ID,
+  );
+  const working = Boolean(oldestPending);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -369,10 +365,11 @@ export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean })
             <Bubble key={m.id} message={m} sending={m.id === PENDING_ID} />
           ))
         )}
-        {thinking ? (
+        {oldestPending ? (
           <ThinkingLine
-            key={lastYouAt}
-            hasFiles={(thread[lastYouAt]?.attachments.length ?? 0) > 0}
+            key={oldestPending.id}
+            hasFiles={oldestPending.attachments.length > 0}
+            since={new Date(oldestPending.at).getTime()}
           />
         ) : null}
         <div ref={endRef} />
@@ -492,14 +489,24 @@ export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean })
             type="button"
             onClick={send}
             disabled={sending || (!text.trim() && files.length === 0)}
-            aria-label="Send"
+            aria-label={working && !text.trim() && files.length === 0 ? "Working" : "Send"}
             className={cn(
               "mb-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.92] disabled:opacity-25 disabled:active:scale-100",
+              // While work is open the button is the activity light,
+              // full strength even when there is nothing typed.
+              working && "disabled:opacity-100",
               // Takes over the push when there is no mic to do it.
               wrapped && (supported ? "order-4" : "order-3 ml-auto"),
             )}
           >
-            <ArrowUp size={18} weight="bold" />
+            {working && !text.trim() && files.length === 0 ? (
+              <span
+                aria-hidden="true"
+                className="size-4 rounded-full border-2 border-bone/30 border-t-bone motion-safe:animate-spin"
+              />
+            ) : (
+              <ArrowUp size={18} weight="bold" />
+            )}
           </button>
         </div>
 
@@ -738,6 +745,7 @@ const SCRIPT_FILES: [string, number][] = [
   ["Working out where it fits…", 6500],
   ["Drafting a reply…", 12000],
   ["Taking longer than usual…", 30000],
+  ["This one needs a proper look. Still on it. The answer lands right here when it's done.", 120000],
 ];
 
 const SCRIPT_TEXT: [string, number][] = [
@@ -745,18 +753,29 @@ const SCRIPT_TEXT: [string, number][] = [
   ["Working out what to do…", 2200],
   ["Drafting a reply…", 8000],
   ["Taking longer than usual…", 30000],
+  ["This one needs a proper look. Still on it. The answer lands right here when it's done.", 120000],
 ];
 
-function ThinkingLine({ hasFiles }: { hasFiles: boolean }) {
+function ThinkingLine({ hasFiles, since }: { hasFiles: boolean; since: number }) {
   const script = hasFiles ? SCRIPT_FILES : SCRIPT_TEXT;
   const [stage, setStage] = useState(0);
 
   useEffect(() => {
-    const timers = script
-      .slice(1)
-      .map(([, at], i) => window.setTimeout(() => setStage(i + 1), at));
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [script]);
+    /* Staged off the message's real age, not this component's mount,
+       so reopening the page mid-dig resumes the story where it truly
+       is instead of pretending to start reading again. */
+    const compute = () => {
+      const elapsed = Math.max(0, Date.now() - since);
+      let s = 0;
+      for (let i = 0; i < script.length; i++) {
+        if (elapsed >= script[i][1]) s = i;
+      }
+      setStage(s);
+    };
+    compute();
+    const id = window.setInterval(compute, 1000);
+    return () => window.clearInterval(id);
+  }, [script, since]);
 
   return (
     <div className="flex flex-col items-start px-0.5">
