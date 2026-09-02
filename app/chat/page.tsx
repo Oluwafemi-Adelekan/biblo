@@ -4,6 +4,7 @@ import { Logo } from "@/components/ui/Logo";
 import { Chat } from "@/components/Chat";
 import { RefreshWhilePending } from "@/components/RefreshWhilePending";
 import { getMessages, getMonth } from "@/lib/data";
+import { aiConfigured } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 /* The send action runs on this route, and the reader's work rides on
@@ -33,7 +34,7 @@ export default async function ChatPage() {
         ) : null}
       </Band>
 
-      <Chat messages={messages} />
+      <Chat messages={messages} aiOn={aiConfigured()} />
       <RefreshWhilePending active={waiting > 0} />
     </div>
   );

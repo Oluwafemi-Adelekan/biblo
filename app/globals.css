@@ -287,3 +287,57 @@ textarea::-webkit-scrollbar {
   height: 0;
   display: none;
 }
+
+/* --- feedback surfaces ----------------------------------------- */
+
+/* The assistant thinking: text that a highlight slides across, the
+   quiet way to say "something is happening" without a spinner. */
+@keyframes shimmer-slide {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.204 0.017 118 / 0.3) 40%,
+    oklch(0.204 0.017 118 / 0.85) 50%,
+    oklch(0.204 0.017 118 / 0.3) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-slide 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-shimmer {
+    background: none;
+    color: oklch(0.204 0.017 118 / 0.55);
+  }
+}
+
+/* Skeletons: a bone block with the same sliding sheen, so loading
+   reads as the page sketching itself in rather than being absent. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(0.204 0.017 118 / 0.08) 40%,
+    oklch(0.204 0.017 118 / 0.16) 50%,
+    oklch(0.204 0.017 118 / 0.08) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-slide 1.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: oklch(0.204 0.017 118 / 0.1);
+  }
+}

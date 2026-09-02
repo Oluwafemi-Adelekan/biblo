@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChatCircle, House, ListBullets, Sliders } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
+import { feel } from "@/lib/feedback";
 
 /* Four equal tabs, each an icon over its name. Chat is one of them,
    not a special button: it is a place you go, like the others. */
@@ -56,6 +57,7 @@ function Tab({
   return (
     <Link
       href={href}
+      onClick={feel}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} waiting on Claude` : undefined}
       className="flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]"

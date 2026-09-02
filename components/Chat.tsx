@@ -23,6 +23,7 @@ import {
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
 import { prepareUploads, sendMessage } from "@/app/actions";
+import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
 import { joinTranscript, readResults } from "@/lib/transcript";
@@ -67,7 +68,7 @@ async function put(url: string, file: File): Promise<{ ok: boolean; why: string 
 /** The id the in-flight copy of your message carries. */
 const PENDING_ID = "__sending__";
 
-export function Chat({ messages }: { messages: Message[] }) {
+export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +115,17 @@ export function Chat({ messages }: { messages: Message[] }) {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [thread.length]);
+
+  /* The falling pop when a reply arrives. The ref starts at the
+     current tail so loading the page never plays a sound. */
+  const lastSeen = useRef(messages.at(-1)?.id);
+  useEffect(() => {
+    const tail = messages.at(-1);
+    if (tail && tail.id !== lastSeen.current) {
+      lastSeen.current = tail.id;
+      if (tail.from !== "you") receivedSound();
+    }
+  }, [messages]);
 
   /* Two reasons to re-measure. Dictation sets the text without going
      through onChange, so the box would not grow to fit a transcript.
@@ -198,6 +210,8 @@ export function Chat({ messages }: { messages: Message[] }) {
     if (!text.trim() && files.length === 0) return;
 
     inFlight.current = true;
+    feel();
+    sentSound();
     setError(null);
 
     // Cleared straight away so the composer feels immediate; the
@@ -294,6 +308,20 @@ export function Chat({ messages }: { messages: Message[] }) {
     });
   }
 
+  const lastYouAt = (() => {
+    for (let i = thread.length - 1; i >= 0; i--) {
+      if (thread[i].from === "you") return i;
+    }
+    return -1;
+  })();
+  const thinking =
+    aiOn &&
+    lastYouAt >= 0 &&
+    thread[lastYouAt].status === "pending" &&
+    !thread
+      .slice(lastYouAt + 1)
+      .some((m) => m.from === "ai" || m.from === "claude");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* ---- the thread ---------------------------------------- */}
@@ -310,6 +338,11 @@ export function Chat({ messages }: { messages: Message[] }) {
             <Bubble key={m.id} message={m} sending={m.id === PENDING_ID} />
           ))
         )}
+        {thinking ? (
+          <div className="flex flex-col items-start px-0.5">
+            <span className="thinking-shimmer text-body">Thinking…</span>
+          </div>
+        ) : null}
         <div ref={endRef} />
       </div>
 
@@ -584,12 +617,13 @@ function Bubble({
     >
       <div
         className={cn(
-          "max-w-[85%] px-3.5 py-2.5",
           mine
-            ? "bg-moss text-bone"
-            : fromClaude || fromReader
-              ? "bg-bone-lift text-ink ring-1 ring-inset ring-ink/12"
-              : "bg-bone text-ink ring-1 ring-inset ring-ink/8",
+            ? "max-w-[85%] bg-moss text-bone px-3.5 py-2.5"
+            : fromReader
+              ? "max-w-[95%] px-0.5 py-1 text-ink"
+              : fromClaude
+                ? "max-w-[85%] bg-bone-lift text-ink ring-1 ring-inset ring-ink/12 px-3.5 py-2.5"
+                : "max-w-[85%] bg-bone text-ink ring-1 ring-inset ring-ink/8 px-3.5 py-2.5",
         )}
       >
         {m.attachments.length > 0 ? (
