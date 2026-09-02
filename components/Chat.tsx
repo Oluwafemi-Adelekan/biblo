@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useOptimistic,
   useRef,
   useState,
@@ -112,8 +113,38 @@ export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean })
     start();
   }
 
+  /* Scrolls the container to its true bottom. scrollIntoView on the
+     end marker stopped 86px short every time: the sticky composer
+     occupies the last stretch of the scroll area, and aligning the
+     marker to the viewport edge parks the newest message's tail
+     underneath it. */
+  const scrollToEnd = () => {
+    const scroller = endRef.current?.closest("main");
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    else endRef.current?.scrollIntoView({ block: "end" });
+  };
+
+  /* Arriving on this page must land on the latest message, not the
+     top of the thread. Before paint, so there is no flash of the
+     beginning; then a ResizeObserver holds the view at the end while
+     images and fonts settle - guessed timeouts kept coming up 80px
+     short. It lets go after two seconds so it can never wrestle the
+     user for the scrollbar. */
+  useLayoutEffect(() => {
+    scrollToEnd();
+    const threadEl = endRef.current?.parentElement;
+    if (!threadEl) return;
+    const ro = new ResizeObserver(scrollToEnd);
+    ro.observe(threadEl);
+    const stop = window.setTimeout(() => ro.disconnect(), 2000);
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(stop);
+    };
+  }, []);
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    scrollToEnd();
   }, [thread.length]);
 
   /* The falling pop when a reply arrives. The ref starts at the

@@ -101,6 +101,10 @@ receipt makes you suspect it has.
 - **Never delete a row to fix a total.** Correct the specific row.
 - Sample rows have `entry.how = "sample"`. If asked to start clean, delete
   exactly those and say how many you removed.
+- **When cleaning up your own test data, delete only ids you created and
+  wrote down at creation time - never an id range.** A range once swept up
+  four of Femi's real messages that arrived while a test ran; they had to
+  be restored from screenshots.
 
 ## Changing the budget
 
