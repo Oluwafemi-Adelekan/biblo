@@ -1,72 +1,38 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
 import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { Label } from "@/components/ui/Text";
 import { shortNaira } from "@/lib/format";
+import { useIncomeVisible } from "@/lib/useIncomeVisible";
 
-/* Hide the income figure. Useful when the phone is out in company,
-   and useful when you would rather think about the month in terms of
-   what is left than what came in.
+/* The income figure, plus the control that hides it.
 
-   The choice lives in this browser only. It is a display preference,
-   not data, so it has no business in the database. */
+   Two separate flex children on purpose. Wrapping the figure in a
+   button gave it different metrics from Spent and Budget beside it,
+   and the row stopped lining up. The stat is now the same markup as
+   its neighbours and the eye sits on its own at the end of the row. */
 
-const KEY = "biblo.showIncome";
-
-function read() {
-  try {
-    return localStorage.getItem(KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-export function IncomeToggle({ income }: { income: number }) {
-  /* Read through an external store so the server renders the same
-     thing every time and the browser corrects it on hydration,
-     instead of setting state inside an effect. */
-  const stored = useSyncExternalStore(
-    (notify) => {
-      window.addEventListener("storage", notify);
-      return () => window.removeEventListener("storage", notify);
-    },
-    read,
-    () => true,
-  );
-  const [override, setOverride] = useState<boolean | null>(null);
-  const showing = override ?? stored;
-
-  function flip() {
-    const next = !showing;
-    setOverride(next);
-    try {
-      localStorage.setItem(KEY, next ? "1" : "0");
-    } catch {
-      // A browser refusing storage still gets the toggle, just not
-      // the memory of it.
-    }
-  }
+export function IncomeStat({ income }: { income: number }) {
+  const { visible, toggle } = useIncomeVisible();
 
   return (
-    <button
-      type="button"
-      onClick={flip}
-      aria-pressed={showing}
-      aria-label={showing ? "Hide income" : "Show income"}
-      className="group text-left transition-transform duration-press ease-out-strong active:scale-[0.94]"
-    >
-      <span className="flex items-center gap-1">
+    <>
+      <span>
         <Label tone="dim">Income</Label>
-        {showing ? (
-          <Eye size={11} className="text-ink/40" />
-        ) : (
-          <EyeSlash size={11} className="text-ink/40" />
-        )}
+        <p className="tnum mt-1 text-meta font-semibold">
+          {visible ? shortNaira(income) : "••••"}
+        </p>
       </span>
-      <span className="tnum mt-1 block text-meta font-semibold">
-        {showing ? shortNaira(income) : "••••"}
-      </span>
-    </button>
+
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={!visible}
+        aria-label={visible ? "Hide income" : "Show income"}
+        className="ml-auto inline-flex size-9 items-center justify-center self-center text-ink/45 transition-[transform,color] duration-press ease-out-strong hover:text-ink active:scale-[0.9]"
+      >
+        {visible ? <Eye size={17} /> : <EyeSlash size={17} />}
+      </button>
+    </>
   );
 }

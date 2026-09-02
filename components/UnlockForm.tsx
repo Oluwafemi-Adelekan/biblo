@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { unlock } from "@/app/unlock/actions";
 import { Wordmark } from "@/components/ui/Text";
+import { Logo } from "@/components/ui/Logo";
 
 /* The only screen you see before the passcode. Deliberately plain:
    no wordmark tagline, no explanation of what the app is. A locked
@@ -13,7 +14,10 @@ export function UnlockForm({ to }: { to: string }) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-sage px-6">
-      <Wordmark text="biblo" className="text-[2rem]" />
+      <span className="flex items-center gap-2.5">
+        <Logo size={30} className="text-ink" />
+        <Wordmark text="biblo" className="text-[2rem]" />
+      </span>
 
       <form action={action} className="mt-10 w-full max-w-[18rem]">
         <input type="hidden" name="to" value={to} />

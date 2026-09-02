@@ -26,8 +26,11 @@ export default async function Expenses({
   if (active) rows = rows.filter((e) => e.categoryId === active.id);
   if (checkOnly) rows = rows.filter((e) => e.entry.check);
 
+  /* Income is money in, so totalling only negatives would show zero
+     on that view. Total whichever direction the filter is about. */
+  const incoming = active?.kind === "income";
   const out = rows
-    .filter((e) => e.amountNGN < 0)
+    .filter((e) => (incoming ? e.amountNGN > 0 : e.amountNGN < 0))
     .reduce((a, e) => a + Math.abs(e.amountNGN), 0);
 
   const byDay = rows.reduce<Record<string, typeof rows>>((acc, e) => {
@@ -61,7 +64,7 @@ export default async function Expenses({
 
       <Band tone="sage" pad="none" className="px-5 pb-5">
         <div>
-          <Amount value={out} size="headline" />
+          <Amount value={out} size="headline" tone={incoming ? "positive" : "default"} />
         </div>
         <p className="mt-1.5 text-label uppercase text-ink/50">
           {rows.length} {rows.length === 1 ? "entry" : "entries"}
@@ -85,10 +88,13 @@ export default async function Expenses({
           <Chip href="/expenses" on={!active && !checkOnly}>
             All
           </Chip>
+          <Chip href="/expenses?category=income" on={active?.id === "income"}>
+            Income
+          </Chip>
           <Chip href="/expenses?check=1" on={checkOnly}>
             Needs a look {m.needsCheck.length > 0 ? `(${m.needsCheck.length})` : ""}
           </Chip>
-          {active ? <Chip on>{active.name}</Chip> : null}
+          {active && active.id !== "income" ? <Chip on>{active.name}</Chip> : null}
         </div>
       </Band>
 

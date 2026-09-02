@@ -2,11 +2,12 @@ import Link from "next/link";
 import { CaretRight, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { Band } from "@/components/ui/Band";
 import { Amount, Label, Wordmark } from "@/components/ui/Text";
+import { Logo } from "@/components/ui/Logo";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { PaceChart } from "@/components/charts/PaceChart";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
-import { IncomeToggle } from "@/components/IncomeToggle";
+import { IncomeStat } from "@/components/IncomeToggle";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { monthLabel, shortNaira } from "@/lib/format";
 
@@ -19,7 +20,11 @@ export default async function Home({
 }) {
   const { month } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
-  const waiting = m.pending.length + m.needsCheck.length;
+  /* Two different states that were being added together, so the
+     home screen said 2 and the screen it linked to said 1. Messages
+     wait on Claude; flagged rows wait on Femi. */
+  const waitingOnClaude = m.pending.length;
+  const needsALook = m.needsCheck.length;
 
   return (
     <div className="pb-6">
@@ -28,7 +33,10 @@ export default async function Home({
         pad="none"
         className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3"
       >
-        <Wordmark text={m.config.wordmark} className="text-[1.4rem]" />
+        <span className="flex items-center gap-2">
+          <Logo size={22} className="text-ink" />
+          <Wordmark text={m.config.wordmark} className="text-[1.4rem]" />
+        </span>
         <MonthPicker
           current={m.month}
           counts={index.counts}
@@ -61,20 +69,35 @@ export default async function Home({
             <p className="tnum mt-1 text-meta font-semibold">{shortNaira(m.budget.total)}</p>
           </span>
           <span className="h-7 w-px bg-rule" />
-          <IncomeToggle income={m.budget.income} />
+          <IncomeStat income={m.budget.income} />
         </div>
       </Band>
 
       {/* ---- waiting on Claude ---------------------------------- */}
-      {waiting > 0 ? (
+      {waitingOnClaude > 0 ? (
         <Link
-          href="/expenses?check=1"
+          href="/chat"
           className="flex items-center justify-between gap-3 bg-amber px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-amber-deep active:scale-[0.99]"
         >
           <span className="flex items-center gap-2.5">
             <WarningDiamond size={15} weight="fill" />
             <span className="text-meta font-medium">
-              {waiting} waiting on Claude
+              {waitingOnClaude} waiting on Claude
+            </span>
+          </span>
+          <CaretRight size={16} weight="bold" />
+        </Link>
+      ) : null}
+
+      {needsALook > 0 ? (
+        <Link
+          href="/expenses?check=1"
+          className="flex items-center justify-between gap-3 border-b border-rule bg-bone px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-2.5">
+            <WarningDiamond size={15} weight="fill" className="text-ember" />
+            <span className="text-meta font-medium">
+              {needsALook} {needsALook === 1 ? "entry needs" : "entries need"} a look
             </span>
           </span>
           <CaretRight size={16} weight="bold" />

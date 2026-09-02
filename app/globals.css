@@ -23,8 +23,11 @@
   --color-ember-deep: oklch(0.579 0.156 36.5); /* ember pressed */
   --color-amber: oklch(0.819 0.158 95.6);      /* attention, add, category focus */
   /* Money coming in. Ember means a problem, and income is not one.
-     Passes AA on every surface: 7.0 on bone, 4.8 on sage. */
-  --color-positive: oklch(0.38 0.1 150);
+     The first attempt sat at L 0.38, which read as black; this is the
+     brightest green still inside sRGB that clears AA on the lists
+     (4.67 on bone, 5.24 on bone-lift) and the large-text threshold on
+     sage (3.18). It is 2.8x apart from ink, against 1.86 before. */
+  --color-positive: oklch(0.47 0.128 150);
   --color-amber-deep: oklch(0.762 0.148 95.6);
 
   /* --- hairlines --------------------------------------------- */

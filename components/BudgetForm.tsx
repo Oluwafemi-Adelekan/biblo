@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Check } from "@phosphor-icons/react";
+import { Check, Eye, EyeSlash } from "@phosphor-icons/react";
 import { updateBudget } from "@/app/actions";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
 import { Label } from "@/components/ui/Text";
 import { naira } from "@/lib/format";
+import { useIncomeVisible } from "@/lib/useIncomeVisible";
 import type { Budget, Category } from "@/lib/schema";
 
 /* Set the numbers here. Everything recalculates as you type, so you
@@ -23,6 +24,7 @@ export function BudgetForm({
   spentByCategory: Record<string, number>;
 }) {
   const [state, action, busy] = useActionState(updateBudget, null);
+  const { visible: showIncome, toggle: toggleIncome } = useIncomeVisible();
 
   const [income, setIncome] = useState(budget.income.toLocaleString("en-NG"));
   const [caps, setCaps] = useState<Record<string, string>>(() =>
@@ -60,19 +62,40 @@ export function BudgetForm({
       <input type="hidden" name="month" value={month} />
 
       <div className="border-y border-rule bg-bone px-5 py-4">
-        <label htmlFor="income" className="block">
-          <Label tone="dim">Income this month</Label>
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="income">
+            <Label tone="dim">Income this month</Label>
+          </label>
+          {/* Same preference as the home screen: hide it in one place
+              and it is hidden in the other. */}
+          <button
+            type="button"
+            onClick={toggleIncome}
+            aria-pressed={!showIncome}
+            aria-label={showIncome ? "Hide income" : "Show income"}
+            className="inline-flex size-8 items-center justify-center text-ink/45 transition-[transform,color] duration-press ease-out-strong hover:text-ink active:scale-[0.9]"
+          >
+            {showIncome ? <Eye size={16} /> : <EyeSlash size={16} />}
+          </button>
+        </div>
         <div className="mt-1.5 flex items-baseline gap-1">
           <span className="text-headline text-ink/40">₦</span>
-          <input
-            id="income"
-            name="income"
-            inputMode="numeric"
-            value={income}
-            onChange={(e) => setIncome(grouped(e.target.value))}
-            className="tnum w-full bg-transparent text-headline text-ink outline-none"
-          />
+          {showIncome ? (
+            <input
+              id="income"
+              name="income"
+              inputMode="numeric"
+              value={income}
+              onChange={(e) => setIncome(grouped(e.target.value))}
+              className="tnum w-full bg-transparent text-headline text-ink outline-none"
+            />
+          ) : (
+            <>
+              {/* The real value still submits; only the display is masked. */}
+              <input type="hidden" name="income" value={income} />
+              <span className="text-headline text-ink/40">••••</span>
+            </>
+          )}
         </div>
       </div>
 
