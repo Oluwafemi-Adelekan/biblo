@@ -11,7 +11,7 @@ export default async function ChatPage() {
   const waiting = m.pending.length;
 
   return (
-    <div className="chat-root flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <Band
         tone="sage"
         pad="none"
