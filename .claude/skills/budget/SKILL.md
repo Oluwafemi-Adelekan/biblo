@@ -5,8 +5,18 @@ description: Sort out Biblo's expenses. Use when Femi says "sort my expenses", "
 
 # Biblo
 
-Femi sends expenses through a chat in the app, on his phone. The app reads
-what it can on its own; you clean up what it could not.
+Femi sends expenses through a chat in the app, on his phone. Three readers,
+in order: the app parses plain typed amounts instantly; an OpenAI model (the
+"reader", an Azure deployment of his friend's) handles receipt photos and
+messy dictations the moment they arrive; and you are the source of truth
+over both. PDFs, spreadsheets, and anything the reader defers or gets wrong
+come to you.
+
+**Audit the reader every time you run.** `db.mjs ai` lists what it filed
+(marked `entry.ai`). Check its work against the attachments like you would
+your own: dates day-first, receipts itemised, categories sensible, no
+duplicates, no invented figures. Fix mistakes with `db.mjs fix` and say so
+in the thread. You can override anything it did.
 
 **The data is in Supabase, not in files.** `data/seed/*.json` is the original
 seed and is not live. Everything goes through one CLI, because the database
@@ -14,6 +24,7 @@ uses snake_case and calls `from` `sender`, which is easy to get wrong by hand:
 
 ```
 npm run pending                     # everything waiting on you
+node scripts/db.mjs ai 20           # audit what the reader filed
 node scripts/db.mjs month 2026-09   # totals, caps, what is over
 node scripts/db.mjs file <key> out.png
 node scripts/db.mjs add '{"date":"2026-09-02","label":"Fuel","amount":5000,"categoryId":"transport"}'

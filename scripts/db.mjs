@@ -12,6 +12,7 @@
      node scripts/db.mjs fix exp_0051 '{"categoryId":"dining","label":"Lunch"}'
      node scripts/db.mjs items exp_0049 '[{"name":"Chinese Rice","qty":2,"unit":2100,"total":4200}]'
      node scripts/db.mjs prices rice
+     node scripts/db.mjs ai 20             # audit what the reader filed
      node scripts/db.mjs redate 2026-09-01 exp_0053 exp_0054
      node scripts/db.mjs month 2026-09
 */
@@ -274,6 +275,29 @@ switch (cmd) {
     if (hi !== lo)
       console.log(`
   unit price ${lo.toLocaleString()} to ${hi.toLocaleString()}, ${(((hi - lo) / lo) * 100).toFixed(0)}% apart`);
+    break;
+  }
+
+  /* What the reader has filed lately, for auditing. */
+  case "ai": {
+    const limit = Number(args[0] ?? 20);
+    const { data } = await db
+      .from("expenses")
+      .select("*")
+      .eq("entry->>ai", "true")
+      .order("id", { ascending: false })
+      .limit(limit);
+    if (!data?.length) {
+      console.log("the reader has not filed anything yet");
+      break;
+    }
+    console.log(`last ${data.length} filed by the reader:`);
+    for (const e of data)
+      console.log(
+        `  ${e.id}  ${e.spent_on}  ${String(e.amount_ngn).padStart(9)}  ` +
+          `${e.category_id.padEnd(14)} ${e.label}` +
+          ((e.items?.length ?? 0) > 0 ? `  (${e.items.length} items)` : ""),
+      );
     break;
   }
 

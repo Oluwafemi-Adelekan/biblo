@@ -1,16 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { getCategories } from "@/lib/data";
 import { parseEntry } from "@/lib/parse";
 import {
   addCategory,
   addExpense,
   addMessage,
+  completeMessage,
   deleteExpense,
+  getFile,
   saveBudget,
   signUpload,
 } from "@/lib/store";
+import { aiConfigured, readWithAI } from "@/lib/ai";
+import { getExpenses } from "@/lib/data";
 import { Attachment } from "@/lib/schema";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
@@ -38,17 +43,30 @@ export async function sendMessage(_prev: unknown, form: FormData) {
 
   const categories = await getCategories();
 
-  // A file always waits for Claude: the app cannot read a photo or a PDF.
   if (attachments.length > 0) {
-    await addMessage({ from: "you", text: text || undefined, attachments, status: "pending" });
+    const msg = await addMessage({
+      from: "you",
+      text: text || undefined,
+      attachments,
+      status: "pending",
+    });
     const what =
       attachments.length === 1
         ? attachments[0].name
         : `${attachments.length} files`;
-    await addMessage({
-      from: "app",
-      text: `Got ${what}. I can't read files myself, so this is waiting for Claude. Say "/budget" in your Claude Code session and it'll go through.`,
-    });
+    const readable = attachments.some((a) => a.type.startsWith("image/"));
+
+    if (aiConfigured() && readable) {
+      await addMessage({ from: "app", text: `Got ${what}. Reading it now.` });
+      after(() => processWithReader(msg.id));
+    } else {
+      await addMessage({
+        from: "app",
+        text: aiConfigured()
+          ? `Got ${what}. The reader only handles images, so this is waiting for Claude.`
+          : `Got ${what}. This is waiting for Claude.`,
+      });
+    }
     revalidatePath("/", "layout");
     return { ok: true as const };
   }
@@ -56,15 +74,21 @@ export async function sendMessage(_prev: unknown, form: FormData) {
   const p = parseEntry(text, categories);
 
   if (p.amount === null || p.categoryId === null) {
-    await addMessage({ from: "you", text, status: "pending" });
-    await addMessage({
-      from: "app",
-      text: p.check?.startsWith("More than one amount")
-        ? "There's more than one expense in that, so I've left the whole thing for Claude rather than guess at one of them."
-        : p.amount === null
-          ? "I couldn't find an amount in that, so I've left it for Claude."
-          : "I couldn't tell which category that belongs to, so I've left it for Claude.",
-    });
+    const msg = await addMessage({ from: "you", text, status: "pending" });
+
+    if (aiConfigured()) {
+      await addMessage({ from: "app", text: "Reading that now." });
+      after(() => processWithReader(msg.id));
+    } else {
+      await addMessage({
+        from: "app",
+        text: p.check?.startsWith("More than one amount")
+          ? "There's more than one expense in that, so I've left the whole thing for Claude rather than guess at one of them."
+          : p.amount === null
+            ? "I couldn't find an amount in that, so I've left it for Claude."
+            : "I couldn't tell which category that belongs to, so I've left it for Claude.",
+      });
+    }
     revalidatePath("/", "layout");
     return { ok: true as const };
   }
@@ -89,6 +113,77 @@ export async function sendMessage(_prev: unknown, form: FormData) {
 
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+/* --- the resident reader ------------------------------------------
+   Runs after the response is sent (Next's after()), so sending never
+   waits on the model. Anything that goes wrong leaves the message
+   pending, which is the Claude path — the reader can fail without
+   anything being lost. */
+async function processWithReader(messageId: string) {
+  try {
+    const { getMessages, getCategories } = await import("@/lib/data");
+    const messages = await getMessages();
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg || msg.status !== "pending") return;
+
+    const cats = await getCategories();
+
+    // Only images; PDFs and spreadsheets stay with Claude.
+    const images: { type: string; base64: string }[] = [];
+    for (const a of msg.attachments) {
+      if (!a.type.startsWith("image/")) continue;
+      const blob = await getFile(a.url.replace("/api/file/", ""));
+      if (!blob) continue;
+      images.push({
+        type: a.type,
+        base64: Buffer.from(await blob.arrayBuffer()).toString("base64"),
+      });
+    }
+
+    const recent = (await getExpenses()).slice(0, 15);
+    const reading = await readWithAI({
+      text: msg.text,
+      images,
+      categories: cats,
+      recent,
+    });
+
+    if (reading.kind === "defer") {
+      await addMessage({
+        from: "ai",
+        text: `Left for Claude: ${reading.reason}`,
+      });
+      revalidatePath("/", "layout");
+      return;
+    }
+
+    let firstId: string | undefined;
+    for (const e of reading.expenses) {
+      const row = await addExpense({
+        date: e.date,
+        time: e.time,
+        label: e.label,
+        amount: e.amount,
+        categoryId: e.categoryId,
+        note: e.note,
+        raw: msg.text,
+        guessed: false,
+        items: e.items,
+        method: e.method,
+        how: images.length > 0 ? "photo" : "typed",
+        ai: true,
+      });
+      firstId ??= row.id;
+    }
+
+    await completeMessage(messageId, firstId);
+    await addMessage({ from: "ai", text: reading.reply, expenseId: firstId });
+    revalidatePath("/", "layout");
+  } catch {
+    // Say nothing and leave it pending: silence here means Claude
+    // picks it up on the next /budget, which is the safe default.
+  }
 }
 
 /** Anything you might reasonably have a receipt in. */

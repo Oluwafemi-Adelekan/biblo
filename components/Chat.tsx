@@ -570,6 +570,7 @@ function Bubble({
 }) {
   const mine = m.from === "you";
   const fromClaude = m.from === "claude";
+  const fromReader = m.from === "ai";
 
   return (
     <div
@@ -586,7 +587,7 @@ function Bubble({
           "max-w-[85%] px-3.5 py-2.5",
           mine
             ? "bg-moss text-bone"
-            : fromClaude
+            : fromClaude || fromReader
               ? "bg-bone-lift text-ink ring-1 ring-inset ring-ink/12"
               : "bg-bone text-ink ring-1 ring-inset ring-ink/8",
         )}
@@ -635,7 +636,7 @@ function Bubble({
               : "Sending"}
           </>
         ) : null}
-        {sending ? null : fromClaude ? "Claude · " : ""}
+        {sending ? null : fromClaude ? "Claude · " : fromReader ? "AI · " : ""}
         {/* en-NG is a 24h locale, so midnight reads as "0:21" without
             this. Nobody writes the time that way. */}
         {sending

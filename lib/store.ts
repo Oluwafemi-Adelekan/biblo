@@ -51,6 +51,9 @@ export async function addExpense(input: {
   guessed: boolean;
   check?: string;
   items?: LineItem[];
+  how?: Expense["entry"]["how"];
+  method?: Expense["method"];
+  ai?: boolean;
 }): Promise<Expense> {
   const row: Expense = {
     id: await nextId("expenses", "exp"),
@@ -61,15 +64,16 @@ export async function addExpense(input: {
     currency: "NGN",
     amountNGN: -Math.abs(input.amount),
     categoryId: input.categoryId,
-    method: "unknown",
+    method: input.method ?? "unknown",
     note: input.note,
     items: input.items ?? [],
     entry: {
-      how: "typed",
+      how: input.how ?? "typed",
       raw: input.raw,
       at: new Date().toISOString(),
       guessed: input.guessed,
       check: input.check,
+      ...(input.ai ? { ai: true } : {}),
     },
   };
 
@@ -106,13 +110,32 @@ export async function addMessage(input: {
     status: input.status ?? "done",
   };
 
-  const { data, error } = await db()
+  let { data, error } = await db()
     .from("messages")
     .insert(fromMessage(row))
     .select()
     .single();
+
+  /* Until the 003 migration runs, the database only knows you, app
+     and claude. The reader's replies fall back to the app's name
+     rather than failing, so the feature works either way. */
+  if (error && input.from === "ai") {
+    ({ data, error } = await db()
+      .from("messages")
+      .insert(fromMessage({ ...row, from: "app" }))
+      .select()
+      .single());
+  }
   if (error) boom("send that message", error);
   return toMessage(data);
+}
+
+/** Takes a message off the pending list once handled. */
+export async function completeMessage(id: string, expenseId?: string) {
+  const patch: Record<string, unknown> = { status: "done" };
+  if (expenseId) patch.expense_id = expenseId;
+  const { error } = await db().from("messages").update(patch).eq("id", id);
+  if (error) boom("mark that message handled", error);
 }
 
 /* --- files ----------------------------------------------------- */

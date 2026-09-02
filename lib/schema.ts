@@ -25,6 +25,9 @@ export const Entry = z.object({
   at: z.string(),
   /** The app matched the category by keyword rather than being told. */
   guessed: z.boolean().default(false),
+  /** Filed by the resident OpenAI reader rather than by Femi or
+   *  Claude. What Claude audits. */
+  ai: z.boolean().optional(),
   /** Set only when something needs a human. The text is shown as-is. */
   check: z.string().optional(),
 });
@@ -104,7 +107,7 @@ export type Attachment = z.infer<typeof Attachment>;
 export const Message = z.object({
   id: z.string(),
   at: z.string(),
-  from: z.enum(["you", "app", "claude"]),
+  from: z.enum(["you", "app", "claude", "ai"]),
   text: z.string().optional(),
   attachments: z.array(Attachment).default([]),
   /** Set when this message produced an expense. */
