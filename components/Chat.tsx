@@ -370,9 +370,10 @@ export function Chat({ messages, aiOn }: { messages: Message[]; aiOn: boolean })
           ))
         )}
         {thinking ? (
-          <div className="flex flex-col items-start px-0.5">
-            <span className="thinking-shimmer text-body">Thinking…</span>
-          </div>
+          <ThinkingLine
+            key={lastYouAt}
+            hasFiles={(thread[lastYouAt]?.attachments.length ?? 0) > 0}
+          />
         ) : null}
         <div ref={endRef} />
       </div>
@@ -720,6 +721,52 @@ function Bubble({
             open
           </Link>
         ) : null}
+      </span>
+    </div>
+  );
+}
+
+/* The waiting line narrates the actual pipeline rather than a
+   generic "thinking": the attachment is downloaded and read first,
+   the month context and categories are weighed next, and the reply
+   is written last. The stage clock mirrors those phases - inside the
+   single model call the phases cannot be observed from outside, so
+   the timing is honest pacing, not telemetry. Past thirty seconds it
+   stops pretending to know and just says so. */
+
+const SCRIPT_FILES: [string, number][] = [
+  ["Reading what you sent…", 0],
+  ["Going through the receipt…", 2500],
+  ["Working out where it fits…", 6500],
+  ["Drafting a reply…", 12000],
+  ["Taking longer than usual…", 30000],
+];
+
+const SCRIPT_TEXT: [string, number][] = [
+  ["Reading your message…", 0],
+  ["Working out what to do…", 2200],
+  ["Drafting a reply…", 8000],
+  ["Taking longer than usual…", 30000],
+];
+
+function ThinkingLine({ hasFiles }: { hasFiles: boolean }) {
+  const script = hasFiles ? SCRIPT_FILES : SCRIPT_TEXT;
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    const timers = script
+      .slice(1)
+      .map(([, at], i) => window.setTimeout(() => setStage(i + 1), at));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [script]);
+
+  return (
+    <div className="flex flex-col items-start px-0.5">
+      <span
+        key={stage}
+        className="thinking-shimmer text-body motion-safe:animate-[rise_260ms_var(--ease-out-strong)]"
+      >
+        {script[stage][0]}
       </span>
     </div>
   );

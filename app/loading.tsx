@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function HomeLoading() {
   return (
-    <div className="pb-6">
+    <div className="loading-fade pb-6">
       <div className="flex items-center justify-between px-5 pt-5 pb-1">
         <Skeleton className="h-7 w-24" />
         <Skeleton className="h-6 w-20" />

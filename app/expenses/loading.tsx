@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function ExpensesLoading() {
   return (
-    <div className="pb-6">
+    <div className="loading-fade pb-6">
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
         <Skeleton className="h-3 w-32" />
         <Skeleton className="h-6 w-20" />

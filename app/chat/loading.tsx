@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function ChatLoading() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="loading-fade flex flex-1 flex-col">
       <div className="flex items-center justify-between px-5 py-4">
         <Skeleton className="h-6 w-24" />
       </div>

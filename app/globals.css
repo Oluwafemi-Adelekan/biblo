@@ -341,3 +341,21 @@ textarea::-webkit-scrollbar {
     background: oklch(0.204 0.017 118 / 0.1);
   }
 }
+
+/* Skeletons wait a beat before appearing. A page that arrives inside
+   250ms - which is most of them, and nearly all revisits - never
+   shows one; flashing a skeleton for a instant reads as flicker, not
+   feedback. Only a genuinely slow load earns the sketch. */
+@keyframes loading-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.loading-fade {
+  opacity: 0;
+  animation: loading-appear 200ms ease-out 250ms forwards;
+}
