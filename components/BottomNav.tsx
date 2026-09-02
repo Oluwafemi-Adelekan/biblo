@@ -57,6 +57,7 @@ function Tab({
   return (
     <Link
       href={href}
+      prefetch={true}
       onClick={feel}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} waiting on Claude` : undefined}
