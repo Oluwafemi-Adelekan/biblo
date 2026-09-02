@@ -858,9 +858,43 @@ const SCRIPT_TEXT: [string, number][] = [
   ["This one needs a proper look. Still on it. The answer lands right here when it's done.", 120000],
 ];
 
+/* Unresolved positions cycle these while the statement settles in,
+   from the beui TextScramble glyph set. */
+const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&@$?/";
+
 function ThinkingLine({ hasFiles, since }: { hasFiles: boolean; since: number }) {
   const script = hasFiles ? SCRIPT_FILES : SCRIPT_TEXT;
   const [stage, setStage] = useState(0);
+  const [shown, setShown] = useState(script[0][0]);
+  const target = script[stage][0];
+
+  /* Scramble toward the current statement: settled characters hold,
+     the rest cycle random glyphs, resolving left to right. Timing
+     per the reference: length x 32ms clamped to 420-760ms, a frame
+     every 40ms. Constant motion runs linear; reduced motion swaps
+     the text plainly. */
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(target);
+      return;
+    }
+    const duration = Math.min(760, Math.max(420, target.length * 32));
+    const t0 = Date.now();
+    const id = window.setInterval(() => {
+      const p = Math.min(1, (Date.now() - t0) / duration);
+      const settled = Math.floor(p * target.length);
+      let out = target.slice(0, settled);
+      for (let i = settled; i < target.length; i++) {
+        out +=
+          target[i] === " "
+            ? " "
+            : GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+      }
+      setShown(out);
+      if (p >= 1) window.clearInterval(id);
+    }, 40);
+    return () => window.clearInterval(id);
+  }, [target]);
 
   useEffect(() => {
     /* Staged off the message's real age, not this component's mount,
@@ -881,15 +915,7 @@ function ThinkingLine({ hasFiles, since }: { hasFiles: boolean; since: number })
 
   return (
     <div className="flex flex-col items-start px-0.5">
-      <span
-        key={stage}
-        className="thinking-shimmer text-body motion-safe:animate-[rise_260ms_var(--ease-out-strong)]"
-      >
-        {script[stage][0]}
-      </span>
-      {/* The sweeping line from his beui reference: a short segment
-          crossing a quiet track for as long as the work is open. */}
-      <span aria-hidden="true" className="thinking-line mt-2" />
+      <span className="thinking-shimmer text-body">{shown}</span>
     </div>
   );
 }
