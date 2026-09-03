@@ -557,7 +557,10 @@ export function Chat({
             className={cn(
               // flex, not inline: an inline span adds baseline space
               // under the field and knocked the placeholder off-centre.
-              "relative flex items-center",
+              "relative flex",
+              // Recording mode stacks: words above, ripple holding
+              // the bottom row for the whole take - Femi's spec.
+              listening ? "flex-col justify-center" : "items-center",
               wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
             )}
           >
@@ -590,23 +593,13 @@ export function Chat({
             autoCapitalize="sentences"
             placeholder={listening ? "" : "Type an expense, or say something"}
             aria-label="Message"
-            className={cn(
-              "chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
-              // Room for the docked ripple once words are flowing.
-              listening && text && "pr-9",
-            )}
+            className="chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
           />
-          {listening && !text ? (
-            <span className="pointer-events-none absolute inset-0 flex items-center">
-              <Wave />
-            </span>
-          ) : null}
-          {/* Words landed, but the ear is still open: the ripple
-              shrinks to the corner instead of vanishing. */}
-          {listening && text ? (
-            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center">
-              <Wave bars={6} />
-            </span>
+          {/* The bar is constantly at the bottom while the ear is
+              open; text fills and wraps above it, and the ripple
+              only leaves when recording stops. */}
+          {listening ? (
+            <Wave className="mb-1.5 w-full justify-between pr-1" />
           ) : null}
           </span>
 
