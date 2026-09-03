@@ -57,14 +57,24 @@ export async function addExpense(input: {
   method?: Expense["method"];
   ai?: boolean;
 }): Promise<Expense> {
+  /* Direction belongs to the category, not the caller: spend rows go
+     negative, income rows positive. This used to hardcode negative,
+     which filed a 22,000 debt repayment as spending (exp_0063). */
+  const { data: cat } = await db()
+    .from("categories")
+    .select("kind")
+    .eq("id", input.categoryId)
+    .maybeSingle();
+  const dir = cat?.kind === "income" ? 1 : -1;
+
   const row: Expense = {
     id: await nextId("expenses", "exp"),
     date: input.date,
     time: input.time,
     label: input.label,
-    amount: -Math.abs(input.amount),
+    amount: dir * Math.abs(input.amount),
     currency: "NGN",
-    amountNGN: -Math.abs(input.amount),
+    amountNGN: dir * Math.abs(input.amount),
     categoryId: input.categoryId,
     method: input.method ?? "unknown",
     note: input.note,
@@ -89,8 +99,10 @@ export async function addExpense(input: {
 }
 
 /** A field-whitelisted update, used by the assistant when Femi asks
- *  for a change in the chat. Amounts keep the direction the row
- *  already had, and the row is marked aiEdited for the audit. */
+ *  for a change in the chat. Direction is recomputed from the
+ *  category that will own the row - preserving the old sign once
+ *  made a wrong minus unfixable: the assistant "fixed" it, the tool
+ *  kept the sign, and Femi was told something untrue. */
 export async function editExpense(
   id: string,
   set: {
@@ -117,10 +129,19 @@ export async function editExpense(
   if (set.note !== undefined) patch.note = set.note;
   if (set.categoryId) patch.category_id = set.categoryId;
   if (set.items) patch.items = set.items;
-  if (set.amount !== undefined) {
-    const dir = Number(current.amount_ngn) >= 0 ? 1 : -1;
-    patch.amount = dir * Math.abs(set.amount);
-    patch.amount_ngn = dir * Math.abs(set.amount);
+  if (set.amount !== undefined || set.categoryId) {
+    const owner = set.categoryId ?? current.category_id;
+    const { data: cat } = await db()
+      .from("categories")
+      .select("kind")
+      .eq("id", owner)
+      .maybeSingle();
+    const dir = cat?.kind === "income" ? 1 : -1;
+    const abs = Math.abs(
+      set.amount !== undefined ? set.amount : Number(current.amount_ngn),
+    );
+    patch.amount = dir * abs;
+    patch.amount_ngn = dir * abs;
   }
   patch.entry = { ...current.entry, aiEdited: true };
 
