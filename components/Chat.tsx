@@ -555,7 +555,9 @@ export function Chat({
               where the placeholder would, until words replace it. */}
           <span
             className={cn(
-              "relative",
+              // flex, not inline: an inline span adds baseline space
+              // under the field and knocked the placeholder off-centre.
+              "relative flex items-center",
               wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
             )}
           >
@@ -588,11 +590,22 @@ export function Chat({
             autoCapitalize="sentences"
             placeholder={listening ? "" : "Type an expense, or say something"}
             aria-label="Message"
-            className="chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
+            className={cn(
+              "chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
+              // Room for the docked ripple once words are flowing.
+              listening && text && "pr-9",
+            )}
           />
           {listening && !text ? (
             <span className="pointer-events-none absolute inset-0 flex items-center">
               <Wave />
+            </span>
+          ) : null}
+          {/* Words landed, but the ear is still open: the ripple
+              shrinks to the corner instead of vanishing. */}
+          {listening && text ? (
+            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center">
+              <Wave bars={6} />
             </span>
           ) : null}
           </span>
@@ -1279,10 +1292,13 @@ function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
    microphone meter: opening a second mic stream knocks Android's
    recogniser over, which silently ate Femi's words for an evening.
    A quiet idle sway says "listening" and costs nothing. */
-function Wave() {
+function Wave({ bars = 26, className }: { bars?: number; className?: string }) {
   return (
-    <span className="flex h-6 items-center gap-[3px]" aria-hidden="true">
-      {Array.from({ length: 26 }, (_, i) => (
+    <span
+      className={cn("flex h-6 items-center gap-[3px]", className)}
+      aria-hidden="true"
+    >
+      {Array.from({ length: bars }, (_, i) => (
         <span
           key={i}
           className="h-4 w-[3px] origin-center rounded-full bg-ink/30 motion-safe:animate-[wave-idle_1.3s_ease-in-out_infinite]"
