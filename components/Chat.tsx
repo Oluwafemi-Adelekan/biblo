@@ -35,7 +35,7 @@ import { prepareUploads, resolveApproval, sendMessage } from "@/app/actions";
 import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
-import { joinTranscript, readResults } from "@/lib/transcript";
+import { joinTranscript, mergeTranscript, readResults } from "@/lib/transcript";
 
 /* ============================================================
    The whole input surface of Biblo.
@@ -519,8 +519,6 @@ export function Chat({
           </ul>
         ) : null}
 
-        <Wave active={listening} />
-
         {/* One element list either way. Rendering two different
             trees would remount the textarea on the switch and drop
             the caret mid-word, so the order and widths change
@@ -552,7 +550,15 @@ export function Chat({
             <Plus size={20} weight="bold" />
           </button>
 
-          {/* No box, no outline: the field is the surface it sits on. */}
+          {/* No box, no outline: the field is the surface it sits on.
+              The span exists so the listening ripple can sit exactly
+              where the placeholder would, until words replace it. */}
+          <span
+            className={cn(
+              "relative",
+              wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
+            )}
+          >
           <textarea
             ref={fieldRef}
             value={text}
@@ -580,13 +586,16 @@ export function Chat({
             }}
             enterKeyHint="send"
             autoCapitalize="sentences"
-            placeholder={listening ? "Listening…" : "Type an expense, or say something"}
+            placeholder={listening ? "" : "Type an expense, or say something"}
             aria-label="Message"
-            className={cn(
-              "chat-field max-h-[32dvh] min-h-[2.5rem] resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30",
-              wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
-            )}
+            className="chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
           />
+          {listening && !text ? (
+            <span className="pointer-events-none absolute inset-0 flex items-center">
+              <Wave />
+            </span>
+          ) : null}
+          </span>
 
           {supported ? (
             <button
@@ -1264,80 +1273,23 @@ function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
   );
 }
 
-/* ---- the live waveform -----------------------------------------
-   While dictation listens, the composer carries a waveform driven by
-   the microphone's real amplitude, not a looped animation. If the mic
-   stream cannot be shared with recognition (some phones refuse), the
-   strip simply does not appear and the pulsing mic still tells the
-   state. Scale transforms only; its 20fps state lives in here alone. */
-function Wave({ active }: { active: boolean }) {
-  const BARS = 36;
-  const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0));
-  const [live, setLive] = useState(false);
-
-  useEffect(() => {
-    if (!active) {
-      setLive(false);
-      return;
-    }
-    let alive = true;
-    let raf = 0;
-    let last = 0;
-    let ctx: AudioContext | null = null;
-    let stream: MediaStream | null = null;
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (!alive) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        ctx = new AudioContext();
-        const an = ctx.createAnalyser();
-        an.fftSize = 256;
-        ctx.createMediaStreamSource(stream).connect(an);
-        const data = new Uint8Array(an.fftSize);
-        setLive(true);
-        const tick = (t: number) => {
-          if (!alive) return;
-          if (t - last > 50) {
-            last = t;
-            an.getByteTimeDomainData(data);
-            let sum = 0;
-            for (let i = 0; i < data.length; i++) {
-              const v = (data[i] - 128) / 128;
-              sum += v * v;
-            }
-            const rms = Math.min(1, Math.sqrt(sum / data.length) * 5);
-            setLevels((p) => [...p.slice(1), rms]);
-          }
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      } catch {
-        /* No shared mic: no strip. */
-      }
-    })();
-    return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-      void ctx?.close().catch(() => {});
-      setLevels(Array(BARS).fill(0));
-    };
-  }, [active]);
-
-  if (!active || !live) return null;
+/* ---- the listening ripple --------------------------------------
+   Sits exactly where the placeholder sits, while dictation waits
+   for words; the first word replaces it. Deliberately NOT a real
+   microphone meter: opening a second mic stream knocks Android's
+   recogniser over, which silently ate Femi's words for an evening.
+   A quiet idle sway says "listening" and costs nothing. */
+function Wave() {
   return (
-    <div className="flex h-9 items-center gap-[3px] px-5 pt-2" aria-hidden="true">
-      {levels.map((v, i) => (
+    <span className="flex h-6 items-center gap-[3px]" aria-hidden="true">
+      {Array.from({ length: 26 }, (_, i) => (
         <span
           key={i}
-          className="h-6 min-w-[2px] flex-1 origin-center rounded-full bg-ink/60"
-          style={{ transform: `scaleY(${Math.max(0.1, v)})` }}
+          className="h-4 w-[3px] origin-center rounded-full bg-ink/30 motion-safe:animate-[wave-idle_1.3s_ease-in-out_infinite]"
+          style={{ animationDelay: `${(i % 7) * 0.13}s` }}
         />
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -1571,21 +1523,23 @@ function useDictation(onTranscript: (text: string) => void) {
     r.lang = "en-NG";
 
     /* Rebuilt from the full results list every time, never appended
-       to. See lib/transcript.ts for why. */
+       to. Android's engine re-emits and grows its entries, so there
+       the chunks are overlap-merged; desktop concatenates plainly and
+       keeps every word exactly as spoken. See lib/transcript.ts. */
+    const merge = /Android/i.test(navigator.userAgent);
     r.onresult = (e) => {
-      const { settled, interim } = readResults(e.results);
+      const { settled, interim } = readResults(e.results, { merge });
       sessionFinal.current = settled;
-      cb.current(joinTranscript(carried.current, settled, interim));
+      cb.current(joinTranscript(carried.current, settled, interim, { merge }));
     };
 
     r.onend = () => {
       // The results list resets on restart, so bank this session's
-      // finals before they disappear. Never bank the same words
-      // twice: some engines fire onend after re-reporting text that
-      // is already carried.
-      const gained = sessionFinal.current.trim();
-      if (gained && !carried.current.trimEnd().endsWith(gained)) {
-        carried.current = (carried.current + sessionFinal.current).trimEnd() + " ";
+      // finals before they disappear.
+      if (sessionFinal.current.trim()) {
+        carried.current = merge
+          ? mergeTranscript(carried.current, sessionFinal.current).trimEnd() + " "
+          : (carried.current + sessionFinal.current).trimEnd() + " ";
       }
       sessionFinal.current = "";
 

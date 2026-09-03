@@ -55,5 +55,38 @@ check(
 const mixed = readResults(results([["the voice ", true], ["keeps going", false]]));
 check("final plus interim", joinTranscript("", mixed.settled, mixed.interim), "the voice keeps going");
 
+/* ---- Android merge mode ---------------------------------------- */
+
+// cumulative finals (the engine grows one entry across re-reports)
+const cum = readResults(
+  results([["okay", true], ["okay let", true], ["okay let me send this", true]]),
+  { merge: true },
+);
+check("merge: cumulative finals", cum.settled, "okay let me send this");
+
+// the same final delivered twice as separate entries
+const dbl = readResults(
+  results([["buy rice ", true], ["buy rice ", true], ["and beans", true]]),
+  { merge: true },
+);
+check("merge: double-fired final", dbl.settled, "buy rice and beans");
+
+// distinct chunks still concatenate
+const dist = readResults(
+  results([["five k fuel ", true], ["two k lunch", true]]),
+  { merge: true },
+);
+check("merge: distinct chunks survive", dist.settled, "five k fuel two k lunch");
+
+// desktop plain mode keeps a genuinely repeated chunk
+const rep = readResults(
+  results([["I'm saying that ", true], ["I'm saying that ", true]]),
+);
+check("plain: real repeat kept", rep.settled, "I'm saying that I'm saying that ");
+
+// merged banking across a restart never doubles
+const banked = joinTranscript("okay let me send this ", "okay let me send this and rice", "", { merge: true });
+check("merge: restart re-report", banked, "okay let me send this and rice");
+
 console.log(bad === 0 ? "\nall transcript checks passed" : `\n${bad} failed`);
 process.exit(bad ? 1 : 0);

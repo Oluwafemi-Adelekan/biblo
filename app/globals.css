@@ -359,3 +359,10 @@ textarea::-webkit-scrollbar {
   opacity: 0;
   animation: loading-appear 200ms ease-out 250ms forwards;
 }
+
+/* The listening ripple in the composer: a quiet sway while dictation
+   waits for words. Deliberately not tied to the microphone. */
+@keyframes wave-idle {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
