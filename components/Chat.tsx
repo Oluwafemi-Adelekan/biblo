@@ -130,6 +130,12 @@ export function Chat({
     applyText(base ? `${base} ${heard}` : heard);
   });
 
+  /* While recording with words on screen, the composer always takes
+     the two-row shape: text on its own full row, and the button row
+     underneath holding plus, the ripple, stop and send - the ripple
+     never leaves that slot. */
+  const rowWrapped = wrapped || (listening && text.trim().length > 0);
+
   function toggleMic() {
     if (listening) {
       stop();
@@ -527,7 +533,7 @@ export function Chat({
           ref={rowRef}
           className={cn(
             "flex items-end gap-2 px-4 py-3",
-            wrapped && "flex-wrap gap-y-2",
+            rowWrapped && "flex-wrap gap-y-2",
           )}
         >
           {/* An off-screen copy of the text at the field's unwrapped
@@ -544,7 +550,7 @@ export function Chat({
             aria-expanded={attachOpen}
             className={cn(
               "mb-0.5 inline-flex size-10 shrink-0 items-center justify-center border border-rule text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.92]",
-              wrapped && "order-2",
+              rowWrapped && "order-2",
             )}
           >
             <Plus size={20} weight="bold" />
@@ -557,11 +563,11 @@ export function Chat({
             className={cn(
               // flex, not inline: an inline span adds baseline space
               // under the field and knocked the placeholder off-centre.
-              "relative flex",
-              // Recording mode stacks: words above, ripple holding
-              // the bottom row for the whole take - Femi's spec.
-              listening ? "flex-col justify-center" : "items-center",
-              wrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
+              "relative flex items-center",
+              rowWrapped ? "order-1 w-full basis-full" : "flex-1 self-center",
+              // Recording with nothing said yet: the ripple holds the
+              // middle of the row alone; no empty text line above it.
+              listening && !text.trim() && "hidden",
             )}
           >
           <textarea
@@ -595,13 +601,19 @@ export function Chat({
             aria-label="Message"
             className="chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
           />
-          {/* The bar is constantly at the bottom while the ear is
-              open; text fills and wraps above it, and the ripple
-              only leaves when recording stops. */}
-          {listening ? (
-            <Wave className="mb-1.5 w-full justify-between pr-1" />
-          ) : null}
           </span>
+
+          {/* The ripple lives between plus and stop for the whole
+              take - whether words exist yet or not - and leaves only
+              when recording stops. */}
+          {listening ? (
+            <Wave
+              className={cn(
+                "mx-1 mb-2 min-w-0 flex-1 justify-between self-center px-1",
+                rowWrapped && "order-2",
+              )}
+            />
+          ) : null}
 
           {supported ? (
             <button
@@ -615,7 +627,8 @@ export function Chat({
                   ? "bg-ember text-ink motion-safe:animate-[pulse-mic_1.4s_ease-in-out_infinite]"
                   : "text-ink/60 hover:text-ink",
                 // First of the pair, so this is what pushes them right.
-                wrapped && "order-3 ml-auto",
+                rowWrapped && "order-3",
+                wrapped && !listening && "ml-auto",
               )}
             >
               {listening ? <Stop size={18} weight="fill" /> : <Microphone size={20} />}
@@ -633,7 +646,8 @@ export function Chat({
               // full strength even when there is nothing typed.
               working && "disabled:opacity-100",
               // Takes over the push when there is no mic to do it.
-              wrapped && (supported ? "order-4" : "order-3 ml-auto"),
+              rowWrapped && (supported ? "order-4" : "order-3"),
+              wrapped && !supported && !listening && "ml-auto",
             )}
           >
             {working && !text.trim() && files.length === 0 ? (
