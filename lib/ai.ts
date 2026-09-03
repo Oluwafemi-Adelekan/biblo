@@ -152,7 +152,9 @@ FILING RULES
 - No date mentioned means today; "yesterday" means the day before.
 - amount is always positive; the category's kind carries direction. Money received goes to an income category.
 - Receipts that list items MUST be itemised: names as printed (keep sizes - "340g" is part of the price), qty, unit, line total.
-- Labels are short names, not sentences.
+- Labels are short names, not sentences. A label names what the money was FOR - the service, the thing, who it supports - NEVER the bank counterparty or the transfer remark. A ride paid into the driver's account is "Eniola's ride", not the driver's name; a transfer whose remark says "Father" is "Money to Dad". Counterparty names, remarks and reference numbers go in note.
+- note is at most one short line of genuinely extra fact. Never quote, restate or summarise what he typed or dictated - he can already see his own message.
+- Money sent to support his parents or relatives is family. giving is gifts and treats to friends and others.
 - If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:

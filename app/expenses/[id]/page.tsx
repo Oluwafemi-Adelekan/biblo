@@ -117,12 +117,8 @@ export default async function ExpenseDetail({
         </Band>
       ) : null}
 
-      {e.entry.raw ? (
-        <Band tone="bone-lift" pad="none" className="px-5 py-4">
-          <Label tone="dim">You typed</Label>
-          <p className="mt-1.5 text-body">{e.entry.raw}</p>
-        </Band>
-      ) : null}
+      {/* entry.raw stays stored for the audit trail, but a wall of
+          dictation is not something Femi wants read back at him. */}
 
       {e.note ? (
         <>
