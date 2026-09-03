@@ -139,6 +139,8 @@ export function Chat({
   function toggleMic() {
     if (listening) {
       stop();
+      // Re-judge the layout without the ripple in the row.
+      measureWrap(text);
       return;
     }
     beforeDictation.current = text.trim();
@@ -227,7 +229,15 @@ export function Chat({
     let others = 0;
     let count = 0;
     for (const child of Array.from(row.children)) {
+      /* The field lives inside a positioning span now, so "the
+         field's own slot" means any child containing it - counting
+         that span as an occupied neighbour subtracted the field's
+         width from itself, shrank the mirror to 40px, and ten thin
+         letters "filled" the line. The listening ripple is skipped
+         too: it borrows the field's slot, it does not occupy one. */
       if (child === field || child === mirrorRef.current) continue;
+      if (child.contains(field)) continue;
+      if (child.getAttribute("aria-hidden") === "true") continue;
       others += (child as HTMLElement).offsetWidth;
       count += 1;
     }
