@@ -20,8 +20,18 @@ export function readResults(results: SpeechResults) {
   let interim = "";
   for (let i = 0; i < results.length; i++) {
     const chunk = results[i][0].transcript;
-    if (results[i].isFinal) settled += chunk;
-    else interim += chunk;
+    if (results[i].isFinal) {
+      /* Android's engine re-emits finals it already delivered as
+         fresh entries in the same list, which is where the doubled
+         words came from. A person saying a word twice lands inside
+         ONE chunk; a whole chunk identical to what the transcript
+         already ends with is the engine repeating itself. */
+      const t = chunk.trim();
+      if (t && settled.trimEnd().endsWith(t)) continue;
+      settled += chunk;
+    } else {
+      interim += chunk;
+    }
   }
   return { settled, interim };
 }

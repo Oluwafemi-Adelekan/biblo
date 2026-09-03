@@ -63,7 +63,8 @@ export async function sendMessage(_prev: unknown, form: FormData) {
     const readable = attachments.some((a) => a.type.startsWith("image/"));
 
     if (aiConfigured() && readable) {
-      await addMessage({ from: "app", text: `Got ${what}. Reading it now.` });
+      // No ack bubble: the thinking line opens with "Got N files,
+      // opening them" - the same sentence, in the right place.
       after(() => processWithReader(msg.id));
     } else {
       await addMessage({

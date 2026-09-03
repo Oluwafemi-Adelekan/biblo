@@ -3,6 +3,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useOptimistic,
   useRef,
   useState,
@@ -448,7 +449,7 @@ export function Chat({
         {oldestPending ? (
           <ThinkingLine
             key={oldestPending.id}
-            hasFiles={oldestPending.attachments.length > 0}
+            message={oldestPending}
             since={new Date(oldestPending.at).getTime()}
           />
         ) : null}
@@ -517,6 +518,8 @@ export function Chat({
             ))}
           </ul>
         ) : null}
+
+        <Wave active={listening} />
 
         {/* One element list either way. Rendering two different
             trees would remount the textarea on the switch and drop
@@ -1261,29 +1264,167 @@ function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
   );
 }
 
-const SCRIPT_FILES: [string, number][] = [
-  ["Reading what you sent…", 0],
-  ["Going through the receipt…", 2500],
-  ["Working out where it fits…", 6500],
-  ["Drafting a reply…", 12000],
-  ["Taking longer than usual…", 30000],
-  ["This one needs a proper look. Still on it. The answer lands right here when it's done.", 120000],
-];
+/* ---- the live waveform -----------------------------------------
+   While dictation listens, the composer carries a waveform driven by
+   the microphone's real amplitude, not a looped animation. If the mic
+   stream cannot be shared with recognition (some phones refuse), the
+   strip simply does not appear and the pulsing mic still tells the
+   state. Scale transforms only; its 20fps state lives in here alone. */
+function Wave({ active }: { active: boolean }) {
+  const BARS = 36;
+  const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0));
+  const [live, setLive] = useState(false);
 
-const SCRIPT_TEXT: [string, number][] = [
-  ["Reading your message…", 0],
-  ["Working out what to do…", 2200],
-  ["Drafting a reply…", 8000],
-  ["Taking longer than usual…", 30000],
-  ["This one needs a proper look. Still on it. The answer lands right here when it's done.", 120000],
-];
+  useEffect(() => {
+    if (!active) {
+      setLive(false);
+      return;
+    }
+    let alive = true;
+    let raf = 0;
+    let last = 0;
+    let ctx: AudioContext | null = null;
+    let stream: MediaStream | null = null;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!alive) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        ctx = new AudioContext();
+        const an = ctx.createAnalyser();
+        an.fftSize = 256;
+        ctx.createMediaStreamSource(stream).connect(an);
+        const data = new Uint8Array(an.fftSize);
+        setLive(true);
+        const tick = (t: number) => {
+          if (!alive) return;
+          if (t - last > 50) {
+            last = t;
+            an.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.min(1, Math.sqrt(sum / data.length) * 5);
+            setLevels((p) => [...p.slice(1), rms]);
+          }
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      } catch {
+        /* No shared mic: no strip. */
+      }
+    })();
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+      void ctx?.close().catch(() => {});
+      setLevels(Array(BARS).fill(0));
+    };
+  }, [active]);
+
+  if (!active || !live) return null;
+  return (
+    <div className="flex h-9 items-center gap-[3px] px-5 pt-2" aria-hidden="true">
+      {levels.map((v, i) => (
+        <span
+          key={i}
+          className="h-6 min-w-[2px] flex-1 origin-center rounded-full bg-ink/60"
+          style={{ transform: `scaleY(${Math.max(0.1, v)})` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const LONG_HAUL =
+  "This one needs a proper look. Still on it. The answer lands right here when it's done.";
+
+/* The narration reads the message it is thinking about - how many
+   files, photo or PDF - and varies its wording per message (seeded
+   by the id, so a reload tells the same story) instead of playing
+   one fixed reel every time. */
+function thinkScript(m: Message): [string, number][] {
+  const n = m.attachments.length;
+  const imgs = m.attachments.filter((a) => a.type.startsWith("image/")).length;
+  const pdfs = m.attachments.filter((a) => a.type === "application/pdf").length;
+  const seed = (s: string) => {
+    let x = 5381;
+    for (const c of s) x = ((x * 33) ^ c.charCodeAt(0)) >>> 0;
+    return x;
+  };
+  const pick = (stage: number, pool: string[]) =>
+    pool[seed(`${m.id}:${stage}`) % pool.length];
+
+  if (n > 0) {
+    const what =
+      n > 1
+        ? `${n} files`
+        : imgs === 1
+          ? "the image you sent"
+          : pdfs === 1
+            ? "the PDF"
+            : "the file";
+    return [
+      [
+        n === 1
+          ? `Got your ${imgs === 1 ? "photo" : "file"}. Opening it…`
+          : `Got ${n} files. Opening them…`,
+        0,
+      ],
+      [pick(1, [`Analyzing ${what}…`, `Reading ${what}…`, `Going through ${what}…`]), 2500],
+      [
+        pick(2, [
+          "Pulling out the numbers…",
+          "Picking out amounts and dates…",
+          "Making sense of the figures…",
+        ]),
+        6500,
+      ],
+      [
+        pick(3, [
+          "Working out where it fits…",
+          "Matching it to your categories…",
+          "Placing it in your month…",
+        ]),
+        10500,
+      ],
+      [pick(4, ["Drafting a reply…", "Writing back…"]), 14000],
+      ["Taking longer than usual…", 30000],
+      [LONG_HAUL, 120000],
+    ];
+  }
+
+  return [
+    [
+      pick(0, ["Reading your message…", "Taking that in…", "Going through what you said…"]),
+      0,
+    ],
+    [
+      pick(1, [
+        "Working out what to do…",
+        "Deciding what this needs…",
+        "Checking it against your month…",
+      ]),
+      2200,
+    ],
+    [pick(2, ["Drafting a reply…", "Putting an answer together…"]), 8000],
+    ["Taking longer than usual…", 30000],
+    [LONG_HAUL, 120000],
+  ];
+}
 
 /* Unresolved positions cycle these while the statement settles in,
    from the beui TextScramble glyph set. */
 const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&@$?/";
 
-function ThinkingLine({ hasFiles, since }: { hasFiles: boolean; since: number }) {
-  const script = hasFiles ? SCRIPT_FILES : SCRIPT_TEXT;
+function ThinkingLine({ message, since }: { message: Message; since: number }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const script = useMemo(() => thinkScript(message), [message.id]);
   const [stage, setStage] = useState(0);
   const [shown, setShown] = useState(script[0][0]);
   const target = script[stage][0];
@@ -1420,12 +1561,12 @@ function useDictation(onTranscript: (text: string) => void) {
     if (!Ctor) return null;
 
     const r = new Ctor();
-    /* Desktop keeps one long session through pauses. Android's
-       engine re-reports finals it already delivered inside a
-       continuous session, which is where the doubled words came
-       from on the Pixel - so there, each phrase is its own short
-       session and the onend restart loop stitches them together. */
-    r.continuous = !/Android/i.test(navigator.userAgent);
+    /* One long session everywhere. The short-session Android
+       workaround made the OS play its recognition beep at every
+       pause, which read as random clicking; the doubled words it
+       dodged are now handled by deduping re-emitted finals in
+       lib/transcript.ts instead. */
+    r.continuous = true;
     r.interimResults = true;
     r.lang = "en-NG";
 
