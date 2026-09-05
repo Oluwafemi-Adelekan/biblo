@@ -18,11 +18,11 @@ export default async function BudgetPage() {
   );
 
   return (
-    <div className="pb-8">
+    <div className="pb-8 lg:space-y-4 lg:pb-12 lg:pt-4">
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-4"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-4 lg:static lg:bg-transparent lg:p-0"
       >
         <Label as="h1" tone="dim">
           {monthLabel(m.month)} budget
@@ -36,19 +36,21 @@ export default async function BudgetPage() {
         />
       </Band>
 
-      <BudgetForm
-        month={m.month}
-        budget={m.budget}
-        categories={m.categories}
-        spentByCategory={spentByCategory}
-      />
+      <div className="lg-card">
+        <BudgetForm
+          month={m.month}
+          budget={m.budget}
+          categories={m.categories}
+          spentByCategory={spentByCategory}
+        />
+      </div>
 
       <div className="px-5 pt-4">
         <AddCategory month={m.month} />
       </div>
 
       {m.spent > 0 ? (
-        <Band tone="sage" pad="none" className="pt-7">
+        <Band tone="sage" pad="none" className="lg-card pt-7 lg:bg-bone lg:pb-2 lg:pt-6">
           <div className="px-5 pb-3">
             <Label as="h2" tone="dim">
               Spent so far

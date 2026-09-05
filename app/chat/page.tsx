@@ -47,10 +47,12 @@ export default async function ChatPage() {
 
   return (
     <div className="flex flex-1 flex-col">
+      {/* Desktop already names the page in the header and carries
+          the brand on the rail, so this row is phone-only. */}
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 py-4"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 py-4 lg:hidden"
       >
         <span className="flex items-center gap-1">
           <Logo size={24} className="text-ink" />

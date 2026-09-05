@@ -32,8 +32,8 @@ export default async function ExpenseDetail({
   const { expense: e, category } = found;
 
   return (
-    <div className="pb-6">
-      <Band tone="sage" pad="none" className="px-5 pt-4 pb-7">
+    <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
+      <Band tone="sage" pad="none" className="lg-card px-5 pt-4 pb-7 lg:p-6 lg:pb-8">
         <Link
           href="/expenses"
           className="inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
@@ -62,7 +62,7 @@ export default async function ExpenseDetail({
         </div>
       </Band>
 
-      <Band tone="bone" pad="none" divide>
+      <Band tone="bone" pad="none" divide className="lg-card">
         <Row label="Date">{dayLabel(e.date)}</Row>
         {e.time && showTime ? <Row label="Time">{clockLabel(e.time)}</Row> : null}
         <Row label="Added">{HOW[e.entry.how]}</Row>
@@ -75,7 +75,7 @@ export default async function ExpenseDetail({
           the point is comparing one price to another, and a table is
           what makes a column of figures comparable. */}
       {e.items.length > 0 ? (
-        <Band tone="bone" pad="none" className="pt-4">
+        <Band tone="bone" pad="none" className="lg-card pt-4 lg:pt-5">
           <div className="px-5">
             <Label as="h2" tone="dim">
               {e.items.length} {e.items.length === 1 ? "item" : "items"}
@@ -126,8 +126,8 @@ export default async function ExpenseDetail({
 
       {e.note ? (
         <>
-          <Rule />
-          <Band tone="bone" pad="none" className="px-5 py-4">
+          <Rule className="lg:hidden" />
+          <Band tone="bone" pad="none" className="lg-card px-5 py-4">
             <Label tone="dim">Note</Label>
             <p className="mt-1.5 text-meta">{e.note}</p>
           </Band>
@@ -135,7 +135,7 @@ export default async function ExpenseDetail({
       ) : null}
 
       {e.entry.check ? (
-        <Band tone="amber" pad="none" className="px-5 py-4">
+        <Band tone="amber" pad="none" className="lg-card px-5 py-4">
           <span className="flex items-start gap-2.5">
             <WarningDiamond size={15} weight="fill" className="mt-0.5 shrink-0" />
             <span>

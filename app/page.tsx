@@ -28,13 +28,15 @@ export default async function Home({
   const settings = await getSettings();
 
   return (
-    <div className="pb-6">
+    <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
+      {/* Desktop: the brand lives on the rail and the page name in
+          the header, so this row thins to just the month picker. */}
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3 lg:static lg:justify-end lg:bg-transparent lg:p-0"
       >
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 lg:hidden">
           <Logo size={30} className="text-ink" />
           <Wordmark text={m.config.wordmark} className="text-[1.4rem]" />
         </span>
@@ -47,7 +49,7 @@ export default async function Home({
       </Band>
 
       {/* ---- the one number ------------------------------------ */}
-      <Band tone="sage" pad="none" className="px-5 pt-5 pb-6">
+      <Band tone="sage" pad="none" className="lg-card px-5 pt-5 pb-6 lg:px-6 lg:pt-6">
         <Label as="h1" tone="dim">
           {m.over ? "Over budget" : "Left to spend"}
         </Label>
@@ -85,7 +87,7 @@ export default async function Home({
       {needsALook > 0 ? (
         <Link
           href="/expenses?check=1"
-          className="flex items-center justify-between gap-3 border-b border-rule bg-bone px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.99]"
+          className="lg-card flex items-center justify-between gap-3 border-b border-rule bg-bone px-5 py-3.5 text-ink transition-[transform,background-color] duration-press ease-out-strong hover:bg-ink/5 active:scale-[0.99] lg:border-b-0"
         >
           <span className="flex items-center gap-2.5">
             <WarningDiamond size={15} weight="fill" className="text-ember" />
@@ -98,7 +100,7 @@ export default async function Home({
       ) : null}
 
       {/* ---- pace ----------------------------------------------- */}
-      <Band tone="bone" pad="none" className="px-5 pt-5 pb-5">
+      <Band tone="bone" pad="none" className="lg-card px-5 pt-5 pb-5 lg:p-6">
         <Label as="h2" tone="dim">
           Pace
         </Label>
@@ -114,7 +116,7 @@ export default async function Home({
 
       {/* ---- where it went -------------------------------------- */}
       {m.spent > 0 ? (
-      <Band tone="sage" pad="none" className="pt-5">
+      <Band tone="sage" pad="none" className="lg-card pt-5 lg:bg-bone lg:pb-2 lg:pt-6">
         <div className="flex items-center justify-between px-5 pb-3">
           <Label as="h2" tone="dim">
             Where it went
@@ -134,7 +136,7 @@ export default async function Home({
       ) : null}
 
       {/* ---- recent --------------------------------------------- */}
-      <Band tone="sage" pad="none" className="pt-5">
+      <Band tone="sage" pad="none" className="lg-card pt-5 lg:bg-bone lg:pb-2 lg:pt-6">
         <div className="flex items-center justify-between px-5 pb-3">
           <Label as="h2" tone="dim">
             Recent

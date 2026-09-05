@@ -370,3 +370,43 @@ textarea::-webkit-scrollbar {
 /* No visible scrollbars, anywhere a strip or panel scrolls. */
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   DESKTOP (lg and up). Everything below is additive: at phone
+   widths these rules do not exist, so the phone stays untouched.
+   ============================================================ */
+
+@media (min-width: 64rem) {
+  /* Accessibility floor: nothing on a desktop screen renders under
+     0.75rem. The label token is the only one below it, and it is a
+     variable, so every label in the app scales at once - and keeps
+     scaling with the reader's own font size, being rem. */
+  :root {
+    --text-label: 0.75rem;
+  }
+
+  /* A card on the desktop ground. A box-shadow ring, not a border,
+     so opting a band in never shifts its layout by a pixel. */
+  .lg-card {
+    box-shadow: 0 0 0 1px var(--color-rule);
+  }
+
+  /* Sheets become centred modals: same panel, same platform dialog,
+     but it fades and settles in place instead of sliding up from a
+     bottom edge that is nowhere near the pointer. */
+  .sheet,
+  .sheet[open] {
+    margin: auto;
+  }
+
+  .sheet:not([open]) {
+    transform: translateY(0.75rem) scale(0.98);
+  }
+
+  @starting-style {
+    .sheet[open] {
+      transform: translateY(0.75rem) scale(0.98);
+      opacity: 0;
+    }
+  }
+}

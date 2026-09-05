@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { DesktopHeader } from "@/components/DesktopHeader";
 import { getSettings } from "@/lib/settings";
 import { getMonth } from "@/lib/data";
 import "./globals.css";
@@ -31,10 +32,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let pending = 0;
   let hideIncome = false;
   let avatar: string | null = null;
+  let name: string | null = null;
   try {
     const s = await getSettings();
     hideIncome = s.hideIncome;
     avatar = s.avatar ?? null;
+    name = s.name ?? null;
   } catch {}
   try {
     const m = await getMonth();
@@ -47,11 +50,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={archivo.variable}>
       <body className="bg-sage-dim" data-hide-income={hideIncome ? "1" : "0"}>
         {/* Phone: the familiar column. Desktop (lg+): the nav becomes
-            a left rail and the column widens to a comfortable page,
+            a left rail, a header runs across the top, and the pages
+            sit as cards on the open ground - no enclosed column,
             purely additive - the phone classes are untouched. */}
         <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-sage shadow-[0_0_0_1px_var(--color-rule)] lg:max-w-none lg:flex-row lg:bg-sage-dim lg:shadow-none">
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:order-2 lg:items-center">
-            <div className="flex w-full flex-1 flex-col lg:max-w-[680px] lg:bg-sage lg:shadow-[0_0_0_1px_var(--color-rule)]">
+            <DesktopHeader name={name} avatar={avatar} />
+            <div className="flex w-full flex-1 flex-col lg:max-w-[760px] lg:px-8">
               {children}
             </div>
           </main>

@@ -92,7 +92,7 @@ function Tab({
       aria-label={badge > 0 ? `${label}, ${badge} being sorted` : undefined}
       className={cn(
         "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]",
-        "lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:px-3",
+        "lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3",
         active && "lg:bg-ink/5",
       )}
     >
@@ -118,7 +118,14 @@ function Tab({
           />
         ) : null}
       </span>
-      <span className={cn("text-label uppercase", active ? "text-ink" : "text-ink/55")}>
+      {/* On the rail the label is the menu item, not a caption, so
+          it gets a readable size: 14px equivalent, in rem. */}
+      <span
+        className={cn(
+          "text-label uppercase lg:text-[0.875rem] lg:tracking-[0.05em]",
+          active ? "text-ink" : "text-ink/55",
+        )}
+      >
         {label}
       </span>
     </Link>

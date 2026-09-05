@@ -1,0 +1,52 @@
+"use client";
+
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+
+/* Desktop only: the strip that runs across the top of the content
+   area, naming the page the way the reference does - title on the
+   left, the person on the right. Phones never render this. */
+
+const TITLES: [string, string][] = [
+  ["/expenses/", "Expense"],
+  ["/expenses", "Expenses"],
+  ["/budget", "Budget"],
+  ["/chat", "Chat"],
+  ["/you", "Profile"],
+  ["/", "Home"],
+];
+
+const BARE = ["/login", "/unlock", "/pin", "/report"];
+
+export function DesktopHeader({
+  name,
+  avatar,
+}: {
+  name: string | null;
+  avatar: string | null;
+}) {
+  const pathname = usePathname();
+  if (BARE.includes(pathname) || pathname.startsWith("/auth/")) return null;
+
+  const title =
+    TITLES.find(([p]) => (p === "/" ? pathname === "/" : pathname.startsWith(p)))?.[1] ??
+    "Biblo";
+
+  return (
+    <header className="hidden w-full shrink-0 items-center justify-between border-b border-rule bg-bone px-8 py-4 lg:flex">
+      <p className="text-title text-ink">{title}</p>
+      <span className="flex items-center gap-2.5">
+        {name ? <span className="text-meta text-ink/70">{name}</span> : null}
+        {avatar ? (
+          <Image
+            src={`/avatars/${avatar}.png`}
+            alt=""
+            width={32}
+            height={32}
+            className="size-8 rounded-full object-cover"
+          />
+        ) : null}
+      </span>
+    </header>
+  );
+}

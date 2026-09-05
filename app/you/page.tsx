@@ -41,8 +41,8 @@ export default async function You() {
   }
 
   return (
-    <div className="pb-8">
-      <Band tone="sage" pad="none" className="px-5 pt-12 pb-12">
+    <div className="pb-8 lg:space-y-4 lg:pb-12 lg:pt-4">
+      <Band tone="sage" pad="none" className="lg-card px-5 pt-12 pb-12">
         <ProfileCard
           name={name}
           email={email}
@@ -51,17 +51,21 @@ export default async function You() {
         />
       </Band>
 
-      <div className="px-5 pt-6 pb-3">
-        <Label>Settings</Label>
+      {/* Desktop: the switches live inside one card, label included,
+          the way the reference boxes its account details. */}
+      <div className="lg-card lg:bg-bone lg:pb-2">
+        <div className="px-5 pt-6 pb-3">
+          <Label>Settings</Label>
+        </div>
+        <SettingsPanel
+          initial={{
+            hideIncome: settings.hideIncome,
+            showTime: settings.showTime,
+            monthStart: settings.monthStart,
+          }}
+          hasPin={Boolean(settings.pinHash)}
+        />
       </div>
-      <SettingsPanel
-        initial={{
-          hideIncome: settings.hideIncome,
-          showTime: settings.showTime,
-          monthStart: settings.monthStart,
-        }}
-        hasPin={Boolean(settings.pinHash)}
-      />
     </div>
   );
 }

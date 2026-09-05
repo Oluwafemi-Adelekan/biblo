@@ -45,13 +45,14 @@ export default async function Expenses({
   let i = 0;
 
   return (
-    <div className="pb-6">
+    <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
       {/* Only the title row sticks. Pinning the whole block, chart
-          and filters included, would eat half the screen. */}
+          and filters included, would eat half the screen. On desktop
+          it floats on the ground instead - the header names the page. */}
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3 lg:static lg:bg-transparent lg:p-0"
       >
         <Label as="h1" tone="dim">
           {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
@@ -72,7 +73,7 @@ export default async function Expenses({
         </span>
       </Band>
 
-      <Band tone="sage" pad="none" className="px-5 pb-5">
+      <Band tone="sage" pad="none" className="lg-card px-5 pb-5 lg:p-6">
         <div>
           {incoming ? (
             <MaskIncome className="text-headline text-ink/35">
@@ -117,7 +118,7 @@ export default async function Expenses({
       {/* The thread is where pending things live; this just points
           at it rather than listing them twice. */}
       {rows.length === 0 ? (
-        <Band tone="bone" pad="lg" className="text-center">
+        <Band tone="bone" pad="lg" className="lg-card text-center">
           <p className="text-title">
             {checkOnly ? "Nothing needs a look." : "Nothing here yet."}
           </p>
@@ -132,8 +133,8 @@ export default async function Expenses({
         Object.entries(byDay).map(([date, items]) => {
           const dayTotal = items.reduce((a, e) => a + Math.abs(e.amountNGN), 0);
           return (
-            <section key={date}>
-              <div className="flex items-center justify-between bg-sage-dim px-5 py-2">
+            <section key={date} className="lg-card">
+              <div className="flex items-center justify-between bg-sage-dim px-5 py-2 lg:bg-bone-lift lg:py-2.5">
                 <Label tone="dim">{dayLabel(date)}</Label>
                 <span className="tnum text-label uppercase text-ink/55">
                   {/* On the income view this is an income sum too. */}
@@ -146,7 +147,7 @@ export default async function Expenses({
                   )}
                 </span>
               </div>
-              <div className="divide-y divide-rule border-y border-rule bg-bone">
+              <div className="divide-y divide-rule border-y border-rule bg-bone lg:border-b-0">
                 {items.map((e) => (
                   <ExpenseRow
                     key={e.id}
