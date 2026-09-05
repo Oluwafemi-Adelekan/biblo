@@ -112,7 +112,9 @@ export function Tour({ run }: { run: boolean }) {
         }
       />
 
-      <div className="absolute inset-x-0 bottom-0 bg-bone p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-1px_0_var(--color-rule)] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]">
+      {/* Phone: a bottom-flush bar. Desktop: a floating card,
+          centred on the content canvas (left offset = rail width). */}
+      <div className="absolute inset-x-0 bottom-0 mx-auto bg-bone p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-1px_0_var(--color-rule)] motion-safe:animate-[rise_200ms_var(--ease-out-strong)] lg:bottom-10 lg:left-[14rem] lg:max-w-[26rem] lg:p-6 lg:pb-6 lg:shadow-[0_0_0_1px_var(--color-rule)]">
         <p className="text-title text-ink">{s.title}</p>
         <p className="mt-2 text-body text-ink/75">{s.body}</p>
 

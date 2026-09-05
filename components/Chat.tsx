@@ -474,8 +474,11 @@ export function Chat({
 
       {viewer ? <Lightbox url={viewer} onClose={() => setViewer(null)} /> : null}
 
-      {/* ---- composer ------------------------------------------ */}
-      <div className="sticky bottom-0 border-t border-rule bg-bone">
+      {/* ---- composer ------------------------------------------
+          Desktop: lifted off the floor with breathing room below,
+          the way every chat product sits its bar. Phones stay
+          flush - thumbs live at the bottom edge. */}
+      <div className="lg-card sticky bottom-0 border-t border-rule bg-bone lg:bottom-5 lg:mb-5 lg:border-t-0">
         {openAsk ? <ApprovalCard key={openAsk.id} m={openAsk} /> : null}
 
         {/* Hidden, not unmounted, while a question is up: the draft,
