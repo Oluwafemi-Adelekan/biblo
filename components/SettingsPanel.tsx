@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { SignOut } from "@phosphor-icons/react";
+import { CaretDown, SignOut, X } from "@phosphor-icons/react";
+import { Sheet } from "@/components/ui/Sheet";
 import { setPin, signOutAction, updateSettings } from "@/app/actions";
 import { INCOME_CHANGED, INCOME_KEY } from "@/lib/useIncomeVisible";
 import { cn } from "@/lib/cn";
@@ -86,18 +87,10 @@ export function SettingsPanel({
             : `Your month runs from the ${ordinal(prefs.monthStart)} to the day before the next ${ordinal(prefs.monthStart)}. Payday budgeting.`
         }
         control={
-          <select
+          <MonthStartControl
             value={prefs.monthStart}
-            onChange={(e) => save({ monthStart: Number(e.target.value) })}
-            aria-label="Month start day"
-            className="border-b border-ink/25 bg-transparent pb-1 text-body text-ink outline-none focus:border-ink"
-          >
-            {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>
-                {ordinal(d)}
-              </option>
-            ))}
-          </select>
+            onPick={(d) => save({ monthStart: d })}
+          />
         }
       />
       <Row
@@ -209,6 +202,9 @@ function Switch({
   onToggle: () => void;
   label: string;
 }) {
+  /* Both states carry their own weight: ink track with a bone knob
+     when on; a rimmed light track with an ink knob when off. No
+     state where the knob dissolves into its background. */
   return (
     <button
       type="button"
@@ -218,15 +214,82 @@ function Switch({
       onClick={onToggle}
       className={cn(
         "relative h-6 w-10 shrink-0 rounded-full transition-colors duration-press",
-        on ? "bg-ink" : "bg-ink/25",
+        on ? "bg-ink" : "bg-bone-lift ring-1 ring-inset ring-ink/30",
       )}
     >
       <span
         className={cn(
-          "absolute top-[3px] size-[18px] rounded-full bg-bone transition-transform duration-press ease-out-strong",
-          on ? "translate-x-[19px]" : "translate-x-[3px]",
+          "absolute left-0 top-[3px] size-[18px] rounded-full transition-transform duration-press ease-out-strong",
+          on ? "translate-x-[19px] bg-bone" : "translate-x-[3px] bg-ink/60",
         )}
       />
     </button>
+  );
+}
+
+function MonthStartControl({
+  value,
+  onPick,
+}: {
+  value: number;
+  onPick: (d: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Month start day"
+        className="flex shrink-0 items-center gap-1.5 border border-ink/30 px-3 py-1.5 text-label uppercase text-ink transition-[background-color] duration-press hover:bg-ink/5"
+      >
+        {ordinal(value)}
+        <CaretDown size={11} weight="bold" className="text-ink/55" />
+      </button>
+
+      <Sheet open={open} onClose={() => setOpen(false)} label="Month starts on">
+        <div className="bg-bone">
+          <div className="flex items-center justify-between border-b border-rule px-5 py-4">
+            <p className="text-label uppercase text-ink/60">
+              Your month starts on the
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="inline-flex size-9 items-center justify-center rounded-full text-ink/70 transition-transform duration-press ease-out-strong active:scale-[0.92]"
+            >
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 px-5 py-5">
+            {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => {
+                  onPick(d);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "tnum h-10 text-meta transition-[transform,background-color] duration-press ease-out-strong active:scale-[0.94]",
+                  d === value
+                    ? "bg-ink font-semibold text-bone"
+                    : "border border-rule text-ink hover:bg-ink/5",
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <p className="px-5 pb-4 text-meta text-ink/55">
+            Payday budgeting: pick the day the money lands, and your month
+            runs from there to the day before it lands again.
+          </p>
+          <div className="h-[max(1.25rem,env(safe-area-inset-bottom))]" />
+        </div>
+      </Sheet>
+    </>
   );
 }

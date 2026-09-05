@@ -208,12 +208,20 @@ async function processScoped(messageId: string) {
       });
     const validIds = new Set(allExpenses.map((e) => e.id));
 
+    /* The assistant addresses whoever this chat belongs to. */
+    const { getSettings } = await import("@/lib/settings");
+    const { viewerEmail } = await import("@/lib/viewer");
+    const [prefs, email] = await Promise.all([getSettings(), viewerEmail()]);
+    const userName =
+      prefs.name?.trim().split(/\s+/)[0] || email?.split("@")[0] || "friend";
+
     const reading = await readWithAI({
       text: msg.text,
       images,
       categories: cats,
       context,
       validIds,
+      userName,
     });
 
     // Pure conversation: reply and close it out; nothing for Claude.
@@ -356,10 +364,14 @@ export async function updateSettings(patch: {
   hideIncome?: boolean;
   showTime?: boolean;
   monthStart?: number;
+  avatar?: string;
 }) {
+  const { isAvatar } = await import("@/lib/avatars");
   const clean: Partial<Settings> = {};
   if (typeof patch.hideIncome === "boolean") clean.hideIncome = patch.hideIncome;
   if (typeof patch.showTime === "boolean") clean.showTime = patch.showTime;
+  if (typeof patch.avatar === "string" && isAvatar(patch.avatar))
+    clean.avatar = patch.avatar;
   if (
     Number.isInteger(patch.monthStart) &&
     patch.monthStart! >= 1 &&

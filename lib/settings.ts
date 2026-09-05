@@ -18,6 +18,10 @@ export type Settings = {
   toured: boolean;
   /** HMAC of the app PIN; absent means no PIN. */
   pinHash?: string;
+  /** Their name, as Google gave it; the assistant greets with it. */
+  name?: string;
+  /** Which face from the avatar pack, by id. */
+  avatar?: string;
 };
 
 export const DEFAULTS: Settings = {

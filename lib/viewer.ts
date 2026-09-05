@@ -40,13 +40,23 @@ export const ownerId = cache(async (): Promise<string> => {
 /** First sight of an authed user: make their profile, and if they are
  *  the owner, claim the pre-account rows; otherwise seed them a fresh
  *  set of categories and an empty budget for this month. */
-async function ensureProfile(uid: string, email: string) {
+async function ensureProfile(uid: string, email: string, fullName?: string) {
   const { data: existing } = await db()
     .from("profiles")
-    .select("id")
+    .select("id, settings")
     .eq("id", uid)
     .maybeSingle();
-  if (existing) return;
+  if (existing) {
+    // A profile from before names were kept learns its name now.
+    const s = (existing.settings ?? {}) as Record<string, unknown>;
+    if (fullName && !s.name) {
+      await db()
+        .from("profiles")
+        .update({ settings: { ...s, name: fullName } })
+        .eq("id", uid);
+    }
+    return;
+  }
 
   const owner = OWNER_EMAILS.includes(email.toLowerCase());
   await db().from("profiles").insert({ id: uid, email: email.toLowerCase(), owner });
