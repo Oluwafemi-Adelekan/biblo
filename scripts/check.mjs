@@ -18,8 +18,18 @@ const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
   auth: { persistSession: false },
 });
 
-const cats = (await db.from("categories").select("*").order("sort")).data ?? [];
-const budgets = (await db.from("budgets").select("*")).data ?? [];
+/* Owner's rows only: this is the audit tool for the house's books.
+   Tenants' budgets start empty and drift is their own to make. */
+const ZERO = "00000000-0000-0000-0000-000000000000";
+const owner =
+  (await db.from("profiles").select("id").eq("owner", true).maybeSingle()).data
+    ?.id ?? ZERO;
+
+const cats =
+  (await db.from("categories").select("*").eq("user_id", owner).order("sort"))
+    .data ?? [];
+const budgets =
+  (await db.from("budgets").select("*").eq("user_id", owner)).data ?? [];
 
 const src = readFileSync(
   new URL("../components/ui/CategoryIcon.tsx", import.meta.url),

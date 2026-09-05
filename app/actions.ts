@@ -127,6 +127,24 @@ export async function sendMessage(_prev: unknown, form: FormData) {
    pending, which is the Claude path — the reader can fail without
    anything being lost. */
 async function processWithReader(messageId: string) {
+  /* after() runs past the request, where there are no cookies to say
+     who is asking - but the message row itself says whose work this
+     is, and everything below scopes through that. */
+  try {
+    const { db } = await import("@/lib/supabase");
+    const { runAsUser } = await import("@/lib/viewer");
+    const { data: m } = await db()
+      .from("messages")
+      .select("user_id")
+      .eq("id", messageId)
+      .maybeSingle();
+    if (m?.user_id) await runAsUser(m.user_id, () => processScoped(messageId));
+  } catch {
+    // Say nothing and leave it pending: the safe default.
+  }
+}
+
+async function processScoped(messageId: string) {
   try {
     const { getMessages, getCategories } = await import("@/lib/data");
     const messages = await getMessages();

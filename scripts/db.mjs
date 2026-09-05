@@ -43,6 +43,20 @@ const die = (m) => {
   process.exit(1);
 };
 
+/* Biblo is multi-user now. This CLI reads and writes the OWNER's rows
+   only - other people's books are not its business. Before the owner
+   first signs in, their rows still carry the zero sentinel. */
+const ZERO = "00000000-0000-0000-0000-000000000000";
+const UID = await (async () => {
+  const { data } = await db
+    .from("profiles")
+    .select("id")
+    .eq("owner", true)
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? ZERO;
+})();
+
 async function nextId(table, prefix) {
   const { data } = await db
     .from(table)
@@ -61,6 +75,7 @@ switch (cmd) {
     const { data: msgs } = await db
       .from("messages")
       .select("*")
+      .eq("user_id", UID)
       .eq("status", "pending")
       .eq("sender", "you")
       .order("sent_at");
@@ -68,6 +83,7 @@ switch (cmd) {
     const { data: flagged } = await db
       .from("expenses")
       .select("*")
+      .eq("user_id", UID)
       .not("entry->>check", "is", null);
 
     console.log(`MESSAGES WAITING (${msgs?.length ?? 0})`);
@@ -111,7 +127,7 @@ switch (cmd) {
        is positive; everything else is an outflow. Forcing it negative
        here made it impossible to record a salary. */
     const { data: cat } = await db
-      .from("categories").select("kind").eq("id", input.categoryId).maybeSingle();
+      .from("categories").select("kind").eq("user_id", UID).eq("id", input.categoryId).maybeSingle();
     if (!cat) die(`no such category: ${input.categoryId}`);
     const sign = cat.kind === "income" ? 1 : -1;
 
@@ -136,7 +152,7 @@ switch (cmd) {
         ...(input.check ? { check: input.check } : {}),
       },
     };
-    const { error } = await db.from("expenses").insert(row);
+    const { error } = await db.from("expenses").insert({ ...row, user_id: UID });
     if (error) die(error.message);
     console.log(`added ${row.id}  ${row.label}  ${row.amount_ngn}  ${row.category_id}`);
     break;
@@ -155,7 +171,7 @@ switch (cmd) {
       expense_id: null,
       status: "done",
     };
-    const { error } = await db.from("messages").insert(row);
+    const { error } = await db.from("messages").insert({ ...row, user_id: UID });
     if (error) die(error.message);
     console.log(`replied as ${row.id}${id && id !== "-" ? ` (re ${id})` : ""}`);
     break;
@@ -166,7 +182,7 @@ switch (cmd) {
     if (!msgId) die("usage: db.mjs done <msg_id> [expense_id]");
     const patch = { status: "done" };
     if (expenseId) patch.expense_id = expenseId;
-    const { error } = await db.from("messages").update(patch).eq("id", msgId);
+    const { error } = await db.from("messages").update(patch).eq("user_id", UID).eq("id", msgId);
     if (error) die(error.message);
     console.log(`${msgId} marked done`);
     break;
@@ -179,7 +195,7 @@ switch (cmd) {
     const patch = JSON.parse(json);
 
     const { data: current, error: readErr } = await db
-      .from("expenses").select("*").eq("id", id).single();
+      .from("expenses").select("*").eq("user_id", UID).eq("id", id).single();
     if (readErr) die(readErr.message);
 
     const row = {};
@@ -199,7 +215,7 @@ switch (cmd) {
     delete entry.check;
     row.entry = entry;
 
-    const { error } = await db.from("expenses").update(row).eq("id", id);
+    const { error } = await db.from("expenses").update(row).eq("user_id", UID).eq("id", id);
     if (error) die(error.message);
     console.log(`${id} corrected, check cleared`);
     break;
@@ -212,7 +228,7 @@ switch (cmd) {
     const [to, ...ids] = args;
     if (!to || ids.length === 0) die("usage: db.mjs redate <YYYY-MM-DD> <id> [id...]");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) die(`not a date: ${to}`);
-    const { error } = await db.from("expenses").update({ spent_on: to }).in("id", ids);
+    const { error } = await db.from("expenses").update({ spent_on: to }).eq("user_id", UID).in("id", ids);
     if (error) die(error.message);
     console.log(`moved ${ids.length} row(s) to ${to}: ${ids.join(", ")}`);
     break;
@@ -231,7 +247,7 @@ switch (cmd) {
     }
 
     const { data: row, error: readErr } = await db
-      .from("expenses").select("amount_ngn").eq("id", id).single();
+      .from("expenses").select("amount_ngn").eq("user_id", UID).eq("id", id).single();
     if (readErr) die(readErr.message);
 
     const sum = items.reduce((a, i) => a + Number(i.total), 0);
@@ -240,7 +256,7 @@ switch (cmd) {
     if (Math.abs(sum - total) > 0.5)
       console.log(`note: items sum to ${sum.toLocaleString()}, the expense is ${total.toLocaleString()}`);
 
-    const { error } = await db.from("expenses").update({ items }).eq("id", id);
+    const { error } = await db.from("expenses").update({ items }).eq("user_id", UID).eq("id", id);
     if (error) die(error.message);
     console.log(`${id}: ${items.length} item(s) attached`);
     break;
@@ -251,7 +267,7 @@ switch (cmd) {
     const q = (args[0] ?? "").toLowerCase();
     if (!q) die("usage: db.mjs prices <part of an item name>");
     const { data } = await db
-      .from("expenses").select("*").neq("items", "[]").order("spent_on");
+      .from("expenses").select("*").eq("user_id", UID).neq("items", "[]").order("spent_on");
 
     const hits = [];
     for (const e of data ?? [])
@@ -284,6 +300,7 @@ switch (cmd) {
     const { data } = await db
       .from("expenses")
       .select("*")
+      .eq("user_id", UID)
       .or("entry->>ai.eq.true,entry->>aiEdited.eq.true")
       .order("id", { ascending: false })
       .limit(limit);
@@ -308,10 +325,10 @@ switch (cmd) {
     const from = `${month}-01`;
     const to = `${mm === 12 ? yy + 1 : yy}-${String(mm === 12 ? 1 : mm + 1).padStart(2, "0")}-01`;
     const { data: rows } = await db
-      .from("expenses").select("*").gte("spent_on", from).lt("spent_on", to);
+      .from("expenses").select("*").eq("user_id", UID).gte("spent_on", from).lt("spent_on", to);
     const { data: b } = await db
-      .from("budgets").select("*").eq("month", month).maybeSingle();
-    const { data: cats } = await db.from("categories").select("*");
+      .from("budgets").select("*").eq("user_id", UID).eq("month", month).maybeSingle();
+    const { data: cats } = await db.from("categories").select("*").eq("user_id", UID);
 
     const kind = Object.fromEntries((cats ?? []).map((c) => [c.id, c.kind]));
     const name = Object.fromEntries((cats ?? []).map((c) => [c.id, c.name]));
@@ -339,6 +356,21 @@ switch (cmd) {
         );
       }
     }
+    break;
+  }
+
+  /* Who has signed up, newest first - Femi's growth check. */
+  case "users": {
+    const { data, error } = await db
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) die(error.message);
+    console.log(`${data?.length ?? 0} account(s)`);
+    for (const p of data ?? [])
+      console.log(
+        `  ${p.created_at.slice(0, 10)}  ${p.owner ? "OWNER " : "      "} ${p.email}`,
+      );
     break;
   }
 

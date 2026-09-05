@@ -2,7 +2,13 @@ import { cache } from "react";
 import { Budget, Category, Config, Expense, Message } from "./schema";
 import { daysInMonth } from "./format";
 import { db, toBudget, toCategory, toExpense, toMessage } from "./supabase";
+import { ownerId, viewerId } from "./viewer";
 import config from "../data/config.json";
+
+/** The month it is right now, where Femi lives. Multi-user Biblo
+ *  defaults everyone to today rather than a configured month. */
+const currentMonth = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" }).slice(0, 7);
 
 /* READS. Everything comes from Supabase through the secret key, on
    the server. The browser never sees a database credential.
@@ -41,6 +47,7 @@ export const getCategories = cache(async (): Promise<Category[]> =>
     const { data, error } = await db()
       .from("categories")
       .select("*")
+      .eq("user_id", await viewerId())
       .order("sort", { ascending: true });
     if (error) fail("categories", error);
     return (data ?? []).map(toCategory);
@@ -49,7 +56,10 @@ export const getCategories = cache(async (): Promise<Category[]> =>
 
 export const getBudgets = cache(async (): Promise<Budget[]> =>
   withRetry(async () => {
-    const { data, error } = await db().from("budgets").select("*");
+    const { data, error } = await db()
+      .from("budgets")
+      .select("*")
+      .eq("user_id", await viewerId());
     if (error) fail("budgets", error);
     return (data ?? []).map(toBudget);
   }),
@@ -60,6 +70,7 @@ export const getExpenses = cache(async (): Promise<Expense[]> =>
     const { data, error } = await db()
       .from("expenses")
       .select("*")
+      .eq("user_id", await viewerId())
       .order("spent_on", { ascending: false })
       .order("spent_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false });
@@ -73,6 +84,7 @@ export const getMessages = cache(async (): Promise<Message[]> =>
     const { data, error } = await db()
       .from("messages")
       .select("*")
+      .eq("user_id", await viewerId())
       .order("sent_at", { ascending: true });
     if (error) fail("messages", error);
     return (data ?? []).map(toMessage);
@@ -95,7 +107,7 @@ export const getMonth = cache(async (month?: string) => {
   /* A month that is missing or malformed falls back rather than
      rendering a page full of NaN. */
   const activeMonth =
-    month && /^\d{4}-\d{2}$/.test(month) ? month : cfg.activeMonth;
+    month && /^\d{4}-\d{2}$/.test(month) ? month : currentMonth();
   const rows = all.filter((e) => e.date.startsWith(activeMonth));
   const budget =
     budgets.find((b) => b.month === activeMonth) ??
@@ -200,18 +212,21 @@ export const getMonthIndex = cache(async () => {
     counts.set(m, (counts.get(m) ?? 0) + 1);
   }
 
+  /* The demo month is the owner's showpiece; a tenant's calendar
+     should not advertise it. */
+  const isOwner = (await viewerId()) === (await ownerId());
   const known = new Set<string>([
     ...counts.keys(),
     ...budgets.map((b) => b.month),
-    cfg.activeMonth,
-    ...(cfg.demoMonth ? [cfg.demoMonth] : []),
+    currentMonth(),
+    ...(isOwner && cfg.demoMonth ? [cfg.demoMonth] : []),
   ]);
 
   return {
     counts: Object.fromEntries(counts),
     hasBudget: new Set(budgets.map((b) => b.month)),
     known: [...known].sort(),
-    activeMonth: cfg.activeMonth,
-    demoMonth: cfg.demoMonth,
+    activeMonth: currentMonth(),
+    demoMonth: isOwner ? cfg.demoMonth : undefined,
   };
 });

@@ -11,6 +11,7 @@ import {
   toMessage,
 } from "./supabase";
 import type { Attachment, Category, Expense, LineItem, Message } from "./schema";
+import { ownerId, viewerId } from "./viewer";
 
 /* ============================================================
    WRITES. All of them, in one place.
@@ -57,12 +58,15 @@ export async function addExpense(input: {
   method?: Expense["method"];
   ai?: boolean;
 }): Promise<Expense> {
+  const uid = await viewerId();
+
   /* Direction belongs to the category, not the caller: spend rows go
      negative, income rows positive. This used to hardcode negative,
      which filed a 22,000 debt repayment as spending (exp_0063). */
   const { data: cat } = await db()
     .from("categories")
     .select("kind")
+    .eq("user_id", uid)
     .eq("id", input.categoryId)
     .maybeSingle();
   const dir = cat?.kind === "income" ? 1 : -1;
@@ -91,7 +95,7 @@ export async function addExpense(input: {
 
   const { data, error } = await db()
     .from("expenses")
-    .insert(fromExpense(row))
+    .insert({ ...fromExpense(row), user_id: uid })
     .select()
     .single();
   if (error) boom("save that expense", error);
@@ -115,9 +119,11 @@ export async function editExpense(
     items?: { name: string; qty: number; unit: number; total: number }[];
   },
 ) {
+  const uid = await viewerId();
   const { data: current, error: readErr } = await db()
     .from("expenses")
     .select("*")
+    .eq("user_id", uid)
     .eq("id", id)
     .single();
   if (readErr) boom(`find ${id}`, readErr);
@@ -134,6 +140,7 @@ export async function editExpense(
     const { data: cat } = await db()
       .from("categories")
       .select("kind")
+      .eq("user_id", uid)
       .eq("id", owner)
       .maybeSingle();
     const dir = cat?.kind === "income" ? 1 : -1;
@@ -145,12 +152,20 @@ export async function editExpense(
   }
   patch.entry = { ...current.entry, aiEdited: true };
 
-  const { error } = await db().from("expenses").update(patch).eq("id", id);
+  const { error } = await db()
+    .from("expenses")
+    .update(patch)
+    .eq("user_id", uid)
+    .eq("id", id);
   if (error) boom(`edit ${id}`, error);
 }
 
 export async function deleteExpense(id: string) {
-  const { error } = await db().from("expenses").delete().eq("id", id);
+  const { error } = await db()
+    .from("expenses")
+    .delete()
+    .eq("user_id", await viewerId())
+    .eq("id", id);
   if (error) boom("delete that expense", error);
 }
 
@@ -175,9 +190,10 @@ export async function addMessage(input: {
     meta: input.meta,
   };
 
+  const uid = await viewerId();
   let { data, error } = await db()
     .from("messages")
-    .insert(fromMessage(row))
+    .insert({ ...fromMessage(row), user_id: uid })
     .select()
     .single();
 
@@ -187,7 +203,7 @@ export async function addMessage(input: {
   if (error && input.from === "ai") {
     ({ data, error } = await db()
       .from("messages")
-      .insert(fromMessage({ ...row, from: "app" }))
+      .insert({ ...fromMessage({ ...row, from: "app" }), user_id: uid })
       .select()
       .single());
   }
@@ -201,9 +217,11 @@ export async function setMessageMeta(
   id: string,
   meta: NonNullable<Message["meta"]>,
 ) {
+  const uid = await viewerId();
   const { data, error: readErr } = await db()
     .from("messages")
     .select("attachments")
+    .eq("user_id", uid)
     .eq("id", id)
     .single();
   if (readErr) boom(`find ${id}`, readErr);
@@ -213,6 +231,7 @@ export async function setMessageMeta(
   const { error } = await db()
     .from("messages")
     .update({ attachments: [...rest, metaEntry(meta)] })
+    .eq("user_id", uid)
     .eq("id", id);
   if (error) boom(`update ${id}`, error);
 }
@@ -221,7 +240,11 @@ export async function setMessageMeta(
 export async function completeMessage(id: string, expenseId?: string) {
   const patch: Record<string, unknown> = { status: "done" };
   if (expenseId) patch.expense_id = expenseId;
-  const { error } = await db().from("messages").update(patch).eq("id", id);
+  const { error } = await db()
+    .from("messages")
+    .update(patch)
+    .eq("user_id", await viewerId())
+    .eq("id", id);
   if (error) boom("mark that message handled", error);
 }
 
@@ -237,7 +260,9 @@ export async function completeMessage(id: string, expenseId?: string) {
  *  back through /api/file. */
 export async function signUpload(name: string) {
   const ext = (/\.([A-Za-z0-9]{1,8})$/.exec(name)?.[1] ?? "bin").toLowerCase();
-  const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  /* The uploader's id is baked into the key, so getFile can tell
+     whose file a key names without another lookup. */
+  const key = `${await viewerId()}--${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const { data, error } = await files()
     .storage.from(BUCKET)
@@ -248,6 +273,15 @@ export async function signUpload(name: string) {
 }
 
 export async function getFile(key: string) {
+  /* A key names its owner; a key from before accounts names nobody
+     and belongs to the owner of the house. Anyone else asking for a
+     file that is not theirs gets the same nothing a bad key gets. */
+  const uid = await viewerId();
+  const owned = key.includes("--")
+    ? key.startsWith(`${uid}--`)
+    : uid === (await ownerId());
+  if (!owned) return null;
+
   const { data, error } = await files().storage.from(BUCKET).download(key);
   if (error) return null;
   return data;
@@ -263,7 +297,17 @@ export async function saveBudget(
   const total = Object.values(caps).reduce((a, c) => a + c, 0);
   const { error } = await db()
     .from("budgets")
-    .upsert({ month, income, total, caps, updated_at: new Date().toISOString() });
+    .upsert(
+      {
+        user_id: await viewerId(),
+        month,
+        income,
+        total,
+        caps,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,month" },
+    );
   if (error) boom("save that budget", error);
   return { month, income, total, caps };
 }
@@ -286,13 +330,20 @@ export async function addCategory(input: {
 
   if (!id) throw new Error("That name has no letters in it.");
 
-  const existing = await db().from("categories").select("id").eq("id", id).maybeSingle();
+  const uid = await viewerId();
+  const existing = await db()
+    .from("categories")
+    .select("id")
+    .eq("user_id", uid)
+    .eq("id", id)
+    .maybeSingle();
   if (existing.data) throw new Error(`${input.name} already exists.`);
 
   // Income sorts last, so a new spend category slots in just before it.
   const { data: top } = await db()
     .from("categories")
     .select("sort")
+    .eq("user_id", uid)
     .eq("kind", "spend")
     .order("sort", { ascending: false })
     .limit(1);
@@ -300,6 +351,7 @@ export async function addCategory(input: {
   const { data, error } = await db()
     .from("categories")
     .insert({
+      user_id: uid,
       id,
       name: input.name,
       icon: input.icon,
@@ -317,6 +369,7 @@ export async function addCategory(input: {
     const { data: b } = await db()
       .from("budgets")
       .select("*")
+      .eq("user_id", uid)
       .eq("month", input.month)
       .maybeSingle();
     if (b) {

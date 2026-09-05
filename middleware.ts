@@ -1,44 +1,58 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE, lockState, same, token } from "@/lib/auth";
+import { createServerClient } from "@supabase/ssr";
+import { COOKIE, same, token } from "@/lib/auth";
 
-/* Runs before every page. Three outcomes:
-   - open          nothing set locally, straight through
-   - locked        needs the cookie, otherwise off to /unlock
-   - misconfigured deployed with no passcode: serve nothing at all */
+/* The front door, now with accounts. A request gets through with a
+   Supabase session (Google, or an emailed link), or with the owner's
+   original passcode cookie - kept so the first phone never notices
+   the migration. Everyone else is sent to /login.
+
+   This also owns session refresh: renewed auth cookies ride out on
+   the response here, because server components cannot set cookies. */
 
 export async function middleware(req: NextRequest) {
-  const state = lockState({
-    passcode: process.env.BIBLO_PASSCODE,
-    secret: process.env.BIBLO_SESSION_SECRET,
-    production: process.env.NODE_ENV === "production",
-  });
+  const { pathname } = req.nextUrl;
 
-  if (state.mode === "open") return NextResponse.next();
-
-  if (state.mode === "misconfigured") {
-    return new NextResponse(
-      "Biblo is deployed without a passcode, so it is refusing to serve.\n" +
-        "Set BIBLO_PASSCODE and BIBLO_SESSION_SECRET in the environment.",
-      { status: 503, headers: { "Content-Type": "text/plain" } },
-    );
+  if (
+    pathname === "/login" ||
+    pathname === "/unlock" ||
+    pathname === "/api/health" ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/api/cron/")
+  ) {
+    return NextResponse.next();
   }
 
-  const { pathname } = req.nextUrl;
-  if (pathname === "/unlock") return NextResponse.next();
-  // Vercel's cron calls this on a schedule and has no cookie. It
-  // carries its own bearer token instead, checked in the route.
-  if (pathname.startsWith("/api/cron/")) return NextResponse.next();
-  // Booleans about configuration, nothing more; being reachable
-  // without the passcode is its entire purpose.
-  if (pathname === "/api/health") return NextResponse.next();
+  let res = NextResponse.next({ request: req });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (all) => {
+          all.forEach(({ name, value }) => req.cookies.set(name, value));
+          res = NextResponse.next({ request: req });
+          all.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
 
-  const expected = await token(process.env.BIBLO_SESSION_SECRET!);
-  const got = req.cookies.get(COOKIE)?.value ?? "";
-  if (same(got, expected)) return NextResponse.next();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) return res;
+
+  if (process.env.BIBLO_SESSION_SECRET) {
+    const got = req.cookies.get(COOKIE)?.value ?? "";
+    if (same(got, await token(process.env.BIBLO_SESSION_SECRET))) return res;
+  }
 
   const to = req.nextUrl.clone();
-  to.pathname = "/unlock";
-  // Come back to whatever was being asked for.
+  to.pathname = "/login";
   to.search = pathname === "/" ? "" : `?to=${encodeURIComponent(pathname)}`;
   return NextResponse.redirect(to);
 }
