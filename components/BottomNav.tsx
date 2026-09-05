@@ -21,8 +21,12 @@ const TABS = [
   { href: "/expenses", label: "Expenses", icon: ListBullets },
   { href: "/budget", label: "Budget", icon: Sliders },
   { href: "/chat", label: "Chat", icon: ChatCircle },
-  { href: "/you", label: "You", icon: UserCircle },
+  { href: "/you", label: "Profile", icon: UserCircle },
 ];
+
+/* Screens where there is nobody signed in (or a lock in the way)
+   have no business showing the furniture behind them. */
+const BARE = ["/login", "/unlock", "/pin"];
 
 export function BottomNav({
   pending,
@@ -32,6 +36,7 @@ export function BottomNav({
   avatar?: string | null;
 }) {
   const pathname = usePathname();
+  if (BARE.includes(pathname) || pathname.startsWith("/auth/")) return null;
 
   return (
     <nav

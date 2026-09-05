@@ -61,7 +61,17 @@ async function ensureProfile(uid: string, email: string, fullName?: string) {
   }
 
   const owner = OWNER_EMAILS.includes(email.toLowerCase());
-  await db().from("profiles").insert({ id: uid, email: email.toLowerCase(), owner });
+  const first = fullName?.trim().split(/\s+/)[0];
+  await db().from("profiles").insert({
+    id: uid,
+    email: email.toLowerCase(),
+    owner,
+    settings: {
+      ...(first ? { name: first } : {}),
+      // Nobody lands on face number one by default.
+      avatar: String(1 + Math.floor(Math.random() * 30)),
+    },
+  });
 
   if (owner) {
     // The original single-user rows become this account's.
@@ -71,19 +81,23 @@ async function ensureProfile(uid: string, email: string, fullName?: string) {
     return;
   }
 
-  // A new tenant starts with the house's category set and a blank
-  // budget for the current month; caps and income are theirs to set.
-  const from = await ownerId();
-  const { data: template } = await db()
+  // A new tenant starts with the plain starter set - not the owner's
+  // personal taxonomy - and a blank budget for the current month.
+  const { DEFAULT_CATEGORIES } = await import("./defaults");
+  await db()
     .from("categories")
-    .select("*")
-    .eq("user_id", from)
-    .order("sort");
-  if (template && template.length > 0) {
-    await db()
-      .from("categories")
-      .insert(template.map(({ ...c }) => ({ ...c, user_id: uid })));
-  }
+    .insert(
+      DEFAULT_CATEGORIES.map((c) => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        group: null,
+        matches: c.matches,
+        kind: c.kind,
+        sort: c.sort,
+        user_id: uid,
+      })),
+    );
   const month = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" }).slice(0, 7);
   await db().from("budgets").insert({ user_id: uid, month, income: 0, total: 0, caps: {} });
 }

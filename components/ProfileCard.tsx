@@ -152,10 +152,12 @@ export function ProfileCard({
       </Sheet>
 
       <Sheet open={open} onClose={() => setOpen(false)} label="Choose your face">
-        <div className="bg-bone">
+        {/* Two thirds of the screen: enough room to breathe, the
+            button flat at the bottom. */}
+        <div className="flex min-h-[66dvh] flex-col bg-bone">
           {/* The chosen one, on its own tile colour. */}
           <div
-            className="flex flex-col items-center px-5 pb-12 pt-5 transition-colors duration-200"
+            className="flex flex-1 flex-col items-center justify-center px-5 pb-12 pt-5 transition-colors duration-200"
             style={{ backgroundColor: avatarTile(sel) }}
           >
             <div className="flex w-full items-center justify-between">
@@ -225,7 +227,7 @@ export function ProfileCard({
             })}
           </div>
 
-          <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="mt-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
             <button
               type="button"
               onClick={apply}

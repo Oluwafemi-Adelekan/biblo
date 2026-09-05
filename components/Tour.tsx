@@ -112,7 +112,7 @@ export function Tour({ run }: { run: boolean }) {
         }
       />
 
-      <div className="absolute inset-x-4 bottom-24 mx-auto max-w-[26rem] bg-bone p-5 shadow-[0_0_0_1px_var(--color-rule)] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]">
+      <div className="absolute inset-x-0 bottom-0 bg-bone p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-1px_0_var(--color-rule)] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]">
         <p className="text-title text-ink">{s.title}</p>
         <p className="mt-2 text-body text-ink/75">{s.body}</p>
 
@@ -129,6 +129,18 @@ export function Tour({ run }: { run: boolean }) {
             ))}
           </span>
           <span className="flex items-center gap-3">
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  feel();
+                  setStep(step - 1);
+                }}
+                className="text-label uppercase text-ink/55 transition-colors duration-press hover:text-ink"
+              >
+                Back
+              </button>
+            ) : null}
             {!last ? (
               <button
                 type="button"
