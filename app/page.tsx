@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { Tour } from "@/components/Tour";
+import { getSettings } from "@/lib/settings";
+import { requirePin } from "@/lib/pin";
 import { CaretRight, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { Band } from "@/components/ui/Band";
 import { Amount, Label, Wordmark } from "@/components/ui/Text";
@@ -18,9 +21,11 @@ export default async function Home({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  await requirePin();
   const { month } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
   const needsALook = m.needsCheck.length;
+  const settings = await getSettings();
 
   return (
     <div className="pb-6">
@@ -172,6 +177,8 @@ export default async function Home({
           {monthLabel(m.month)} is sample data
         </p>
       ) : null}
+
+      <Tour run={!settings.toured} />
     </div>
   );
 }

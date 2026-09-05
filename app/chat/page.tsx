@@ -1,4 +1,5 @@
 import { Band } from "@/components/ui/Band";
+import { requirePin } from "@/lib/pin";
 import { Wordmark } from "@/components/ui/Text";
 import { Logo } from "@/components/ui/Logo";
 import { Chat } from "@/components/Chat";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function ChatPage() {
+  await requirePin();
   const [messages, m, all, cats] = await Promise.all([
     getMessages(),
     getMonth(),

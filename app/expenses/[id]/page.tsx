@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { getSettings } from "@/lib/settings";
+import { requirePin } from "@/lib/pin";
 import Link from "next/link";
 import { ArrowLeft, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { Band, Row, Rule } from "@/components/ui/Band";
@@ -22,6 +24,8 @@ export default async function ExpenseDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePin();
+  const { showTime } = await getSettings();
   const { id } = await params;
   const found = await getExpense(id);
   if (!found) notFound();
@@ -60,7 +64,7 @@ export default async function ExpenseDetail({
 
       <Band tone="bone" pad="none" divide>
         <Row label="Date">{dayLabel(e.date)}</Row>
-        {e.time ? <Row label="Time">{clockLabel(e.time)}</Row> : null}
+        {e.time && showTime ? <Row label="Time">{clockLabel(e.time)}</Row> : null}
         <Row label="Added">{HOW[e.entry.how]}</Row>
         {e.entry.guessed ? (
           <Row label="Category">Guessed from what you typed</Row>

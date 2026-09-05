@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requirePin } from "@/lib/pin";
 import { Band } from "@/components/ui/Band";
 import { Comb } from "@/components/ui/Comb";
 import { Amount, Label } from "@/components/ui/Text";
@@ -16,6 +17,7 @@ export default async function Expenses({
 }: {
   searchParams: Promise<{ category?: string; check?: string; month?: string }>;
 }) {
+  await requirePin();
   const { category: categoryId, check, month } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
 

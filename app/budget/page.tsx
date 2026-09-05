@@ -1,4 +1,5 @@
 import { Band } from "@/components/ui/Band";
+import { requirePin } from "@/lib/pin";
 import { Label } from "@/components/ui/Text";
 import { BudgetForm } from "@/components/BudgetForm";
 import { AddCategory } from "@/components/AddCategory";
@@ -10,6 +11,7 @@ import { monthLabel } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function BudgetPage() {
+  await requirePin();
   const [m, index] = await Promise.all([getMonth(), getMonthIndex()]);
   const spentByCategory = Object.fromEntries(
     m.categoryRows.map((r) => [r.category.id, r.total]),

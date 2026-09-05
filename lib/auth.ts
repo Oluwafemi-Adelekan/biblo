@@ -20,7 +20,7 @@ const enc = new TextEncoder();
 /** The cookie holds an HMAC of a fixed string, so it proves the
  *  passcode was known without carrying it. Rotating the secret
  *  signs every device out. */
-export async function token(secret: string) {
+export async function token(secret: string, message = "biblo-v1") {
   const key = await crypto.subtle.importKey(
     "raw",
     enc.encode(secret),
@@ -28,7 +28,7 @@ export async function token(secret: string) {
     false,
     ["sign"],
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode("biblo-v1"));
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 

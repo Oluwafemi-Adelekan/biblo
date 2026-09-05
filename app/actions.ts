@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@supabase/ssr";
+import { COOKIE, token } from "@/lib/auth";
+import { getSettings, saveSettings, type Settings } from "@/lib/settings";
+import { viewerId } from "@/lib/viewer";
 import { getCategories } from "@/lib/data";
 import { parseEntry } from "@/lib/parse";
 import {
@@ -342,6 +348,98 @@ export async function resolveApproval(id: string, approved: boolean) {
   });
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+/* --- the profile screen ---------------------------------------- */
+
+export async function updateSettings(patch: {
+  hideIncome?: boolean;
+  showTime?: boolean;
+  monthStart?: number;
+}) {
+  const clean: Partial<Settings> = {};
+  if (typeof patch.hideIncome === "boolean") clean.hideIncome = patch.hideIncome;
+  if (typeof patch.showTime === "boolean") clean.showTime = patch.showTime;
+  if (
+    Number.isInteger(patch.monthStart) &&
+    patch.monthStart! >= 1 &&
+    patch.monthStart! <= 28
+  ) {
+    clean.monthStart = patch.monthStart;
+  }
+  await saveSettings(clean);
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+}
+
+const PIN_COOKIE = "biblo_pin";
+const pinCookieOpts = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 60 * 60 * 24 * 180,
+  path: "/",
+};
+const pinHashFor = async (uid: string, pin: string) =>
+  token(process.env.BIBLO_SESSION_SECRET ?? "biblo-pin", `pin:${uid}:${pin}`);
+
+export async function setPin(pin: string | null) {
+  const uid = await viewerId();
+  const jar = await cookies();
+  if (pin === null) {
+    await saveSettings({ pinHash: null } as unknown as Partial<Settings>);
+    jar.delete(PIN_COOKIE);
+  } else {
+    if (!/^\d{4,8}$/.test(pin)) {
+      return { ok: false as const, error: "A PIN is 4 to 8 digits." };
+    }
+    const hash = await pinHashFor(uid, pin);
+    await saveSettings({ pinHash: hash });
+    jar.set(PIN_COOKIE, hash, pinCookieOpts);
+  }
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+}
+
+export async function verifyPin(_prev: unknown, form: FormData) {
+  const pin = String(form.get("pin") ?? "");
+  const uid = await viewerId();
+  const s = await getSettings();
+  if (s.pinHash) {
+    const hash = await pinHashFor(uid, pin);
+    if (hash !== s.pinHash) {
+      return { ok: false as const, error: "That is not it. Try again." };
+    }
+    (await cookies()).set(PIN_COOKIE, hash, pinCookieOpts);
+  }
+  redirect("/");
+}
+
+export async function markToured() {
+  await saveSettings({ toured: true });
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+}
+
+export async function signOutAction() {
+  const jar = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => jar.getAll(),
+        setAll: (all) =>
+          all.forEach(({ name, value, options }) => jar.set(name, value, options)),
+      },
+    },
+  );
+  await supabase.auth.signOut();
+  // The owner's passcode cookie and any PIN go too: signing out
+  // means the next person at this screen starts from the door.
+  jar.delete(COOKIE);
+  jar.delete(PIN_COOKIE);
+  redirect("/login");
 }
 
 /** Anything you might reasonably have a receipt in. */

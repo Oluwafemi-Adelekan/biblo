@@ -95,6 +95,18 @@ const authedUser = cache(async () => {
   return data.user ?? null;
 });
 
+/** The signed-in person's email, from their profile row - works for
+ *  the passcode path too, since that resolves to the owner. */
+export const viewerEmail = cache(async (): Promise<string | null> => {
+  const uid = await viewerId();
+  const { data } = await db()
+    .from("profiles")
+    .select("email")
+    .eq("id", uid)
+    .maybeSingle();
+  return data?.email ?? null;
+});
+
 export const viewerId = cache(async (): Promise<string> => {
   const forced = als.getStore();
   if (forced) return forced;

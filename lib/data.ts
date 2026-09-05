@@ -5,10 +5,46 @@ import { db, toBudget, toCategory, toExpense, toMessage } from "./supabase";
 import { ownerId, viewerId } from "./viewer";
 import config from "../data/config.json";
 
-/** The month it is right now, where Femi lives. Multi-user Biblo
- *  defaults everyone to today rather than a configured month. */
-const currentMonth = () =>
-  new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" }).slice(0, 7);
+import { getSettings } from "./settings";
+
+/* Budget periods. A "month" is labelled by the calendar month its
+   start day falls in, but where it begins is the user's choice:
+   payday budgeting means the 28th through the 27th is one month.
+   monthStart 1 collapses all of this into plain calendar months. */
+
+const todayISO = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
+
+const shiftMonth = (label: string, by: number) => {
+  const [y, m] = label.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + by, 1)).toISOString().slice(0, 7);
+};
+
+/** February has no 30th; a start day is clamped into the month. */
+const clampStart = (label: string, startDay: number) =>
+  Math.min(startDay, daysInMonth(label));
+
+const dayStr = (label: string, d: number) =>
+  `${label}-${String(d).padStart(2, "0")}`;
+
+function periodOf(label: string, startDay: number) {
+  const from = dayStr(label, clampStart(label, startDay));
+  const next = shiftMonth(label, 1);
+  const to = dayStr(next, clampStart(next, startDay));
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000);
+  return { from, to, days };
+}
+
+/** Which period label a given date belongs to. */
+function labelFor(date: string, startDay: number) {
+  const label = date.slice(0, 7);
+  return date >= dayStr(label, clampStart(label, startDay))
+    ? label
+    : shiftMonth(label, -1);
+}
+
+const addDays = (iso: string, n: number) =>
+  new Date(Date.parse(iso) + n * 86400000).toISOString().slice(0, 10);
 
 /* READS. Everything comes from Supabase through the secret key, on
    the server. The browser never sees a database credential.
@@ -106,9 +142,13 @@ export const getMonth = cache(async (month?: string) => {
 
   /* A month that is missing or malformed falls back rather than
      rendering a page full of NaN. */
+  const { monthStart } = await getSettings();
   const activeMonth =
-    month && /^\d{4}-\d{2}$/.test(month) ? month : currentMonth();
-  const rows = all.filter((e) => e.date.startsWith(activeMonth));
+    month && /^\d{4}-\d{2}$/.test(month)
+      ? month
+      : labelFor(todayISO(), monthStart);
+  const period = periodOf(activeMonth, monthStart);
+  const rows = all.filter((e) => e.date >= period.from && e.date < period.to);
   const budget =
     budgets.find((b) => b.month === activeMonth) ??
     ({ month: activeMonth, income: 0, total: 0, caps: {} } satisfies Budget);
@@ -139,12 +179,13 @@ export const getMonth = cache(async (month?: string) => {
     })
     .sort((a, b) => b.total - a.total);
 
-  /* Day by day, zero-filled, plus a running total. The running total
-     is what the pace chart plots against an even-spend reference. */
-  const days = daysInMonth(activeMonth);
+  /* Day by day across the period, zero-filled, plus a running total.
+     The running total is what the pace chart plots against an
+     even-spend reference. */
+  const days = period.days;
   let running = 0;
   const daily = Array.from({ length: days }, (_, i) => {
-    const date = `${activeMonth}-${String(i + 1).padStart(2, "0")}`;
+    const date = addDays(period.from, i);
     const total = spendRows
       .filter((e) => e.date === date)
       .reduce((s, e) => s + Math.abs(e.amountNGN), 0);
@@ -152,12 +193,15 @@ export const getMonth = cache(async (month?: string) => {
     return { date, day: i + 1, total, running };
   });
 
-  /* Only days that have happened count as elapsed. For a past month
+  /* Only days that have happened count as elapsed. For a past period
      that is all of it; for the current one it is up to today. */
-  const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const today = todayISO();
   const elapsed =
-    activeMonth > thisMonth ? 0 : activeMonth < thisMonth ? days : now.getDate();
+    today < period.from
+      ? 0
+      : today >= period.to
+        ? days
+        : Math.round((Date.parse(today) - Date.parse(period.from)) / 86400000) + 1;
 
   const needsCheck = rows.filter((e) => e.entry.check);
   const pending = messages.filter((x) => x.from === "you" && x.status === "pending");
@@ -206,19 +250,21 @@ export const getMonthIndex = cache(async () => {
     getExpenses(),
   ]);
 
+  const { monthStart } = await getSettings();
   const counts = new Map<string, number>();
   for (const e of expenses) {
-    const m = e.date.slice(0, 7);
+    const m = labelFor(e.date, monthStart);
     counts.set(m, (counts.get(m) ?? 0) + 1);
   }
 
   /* The demo month is the owner's showpiece; a tenant's calendar
      should not advertise it. */
   const isOwner = (await viewerId()) === (await ownerId());
+  const nowLabel = labelFor(todayISO(), monthStart);
   const known = new Set<string>([
     ...counts.keys(),
     ...budgets.map((b) => b.month),
-    currentMonth(),
+    nowLabel,
     ...(isOwner && cfg.demoMonth ? [cfg.demoMonth] : []),
   ]);
 
@@ -226,7 +272,7 @@ export const getMonthIndex = cache(async () => {
     counts: Object.fromEntries(counts),
     hasBudget: new Set(budgets.map((b) => b.month)),
     known: [...known].sort(),
-    activeMonth: currentMonth(),
+    activeMonth: nowLabel,
     demoMonth: isOwner ? cfg.demoMonth : undefined,
   };
 });

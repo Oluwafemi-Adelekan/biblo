@@ -16,8 +16,10 @@ import { useCallback, useSyncExternalStore } from "react";
    thing every time and the browser corrects it on hydration, instead
    of setting state inside an effect. */
 
-const KEY = "biblo.showIncome";
-const CHANGED = "biblo:income-visibility";
+export const INCOME_KEY = "biblo.showIncome";
+export const INCOME_CHANGED = "biblo:income-visibility";
+const KEY = INCOME_KEY;
+const CHANGED = INCOME_CHANGED;
 
 /* Falls back to memory when storage is blocked, so the toggle still
    works for the session even if it cannot be remembered. */
@@ -36,8 +38,16 @@ function subscribe(notify: () => void) {
 }
 
 function read() {
+  /* A device-level peek wins; with none, the account's own setting
+     (carried on <body> by the layout) is the default. */
   try {
-    return localStorage.getItem(KEY) !== "0";
+    const v = localStorage.getItem(KEY);
+    if (v !== null) return v !== "0";
+  } catch {
+    return memo;
+  }
+  try {
+    return document.body.dataset.hideIncome !== "1";
   } catch {
     return memo;
   }

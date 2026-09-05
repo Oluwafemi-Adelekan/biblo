@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChatCircle, House, ListBullets, Sliders } from "@phosphor-icons/react";
+import {
+  ChatCircle,
+  House,
+  ListBullets,
+  Sliders,
+  UserCircle,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
 import { feel } from "@/lib/feedback";
 
@@ -14,6 +20,7 @@ const TABS = [
   { href: "/expenses", label: "Expenses", icon: ListBullets },
   { href: "/budget", label: "Budget", icon: Sliders },
   { href: "/chat", label: "Chat", icon: ChatCircle },
+  { href: "/you", label: "You", icon: UserCircle },
 ];
 
 export function BottomNav({ pending }: { pending: number }) {

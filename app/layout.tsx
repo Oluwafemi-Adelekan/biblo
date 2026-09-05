@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { getSettings } from "@/lib/settings";
 import { getMonth } from "@/lib/data";
 import "./globals.css";
 
@@ -28,6 +29,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
      right outcome is no dot - not the platform's crash page over the
      entire app, which is what an unhandled throw here produces. */
   let pending = 0;
+  let hideIncome = false;
+  try {
+    hideIncome = (await getSettings()).hideIncome;
+  } catch {}
   try {
     const m = await getMonth();
     pending = m.pending.length;
@@ -37,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" className={archivo.variable}>
-      <body className="bg-sage-dim">
+      <body className="bg-sage-dim" data-hide-income={hideIncome ? "1" : "0"}>
         <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-sage shadow-[0_0_0_1px_var(--color-rule)]">
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
             {children}
