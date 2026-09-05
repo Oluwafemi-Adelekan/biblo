@@ -366,3 +366,7 @@ textarea::-webkit-scrollbar {
   0%, 100% { transform: scaleY(0.3); }
   50% { transform: scaleY(1); }
 }
+
+/* No visible scrollbars, anywhere a strip or panel scrolls. */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }

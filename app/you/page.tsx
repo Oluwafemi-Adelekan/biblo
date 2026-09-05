@@ -42,7 +42,7 @@ export default async function You() {
 
   return (
     <div className="pb-8">
-      <Band tone="sage" pad="none" className="px-5 pt-6 pb-5">
+      <Band tone="sage" pad="none" className="px-5 pt-12 pb-12">
         <ProfileCard
           name={name}
           email={email}
@@ -51,7 +51,7 @@ export default async function You() {
         />
       </Band>
 
-      <div className="px-5 pt-4 pb-3">
+      <div className="px-5 pt-6 pb-3">
         <Label>Settings</Label>
       </div>
       <SettingsPanel
