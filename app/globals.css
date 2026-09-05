@@ -393,19 +393,22 @@ textarea::-webkit-scrollbar {
 
   /* Sheets become centred modals: same panel, same platform dialog,
      but it fades and settles in place instead of sliding up from a
-     bottom edge that is nowhere near the pointer. */
+     bottom edge that is nowhere near the pointer. The rail is 14rem
+     wide, so shifting by half of it centres the modal on the content
+     canvas rather than the screen - anything else reads as skewed. */
   .sheet,
   .sheet[open] {
     margin: auto;
+    transform: translateX(7rem);
   }
 
   .sheet:not([open]) {
-    transform: translateY(0.75rem) scale(0.98);
+    transform: translateX(7rem) translateY(0.75rem) scale(0.98);
   }
 
   @starting-style {
     .sheet[open] {
-      transform: translateY(0.75rem) scale(0.98);
+      transform: translateX(7rem) translateY(0.75rem) scale(0.98);
       opacity: 0;
     }
   }

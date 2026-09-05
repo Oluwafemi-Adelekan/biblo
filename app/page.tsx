@@ -10,6 +10,7 @@ import { CategoryBars } from "@/components/charts/CategoryBars";
 import { PaceChart } from "@/components/charts/PaceChart";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
+import { HeaderPortal } from "@/components/HeaderPortal";
 import { MaskIncome } from "@/components/MaskIncome";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { monthLabel, shortNaira } from "@/lib/format";
@@ -29,23 +30,25 @@ export default async function Home({
 
   return (
     <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
-      {/* Desktop: the brand lives on the rail and the page name in
-          the header, so this row thins to just the month picker. */}
+      {/* Phone: brand row with the picker. Desktop: the row hides
+          and the picker teleports into the fixed header up top. */}
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3 lg:static lg:justify-end lg:bg-transparent lg:p-0"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-5 pb-3 lg:hidden"
       >
-        <span className="flex items-center gap-1 lg:hidden">
+        <span className="flex items-center gap-1">
           <Logo size={30} className="text-ink" />
           <Wordmark text={m.config.wordmark} className="text-[1.4rem]" />
         </span>
-        <MonthPicker
-          current={m.month}
-          counts={index.counts}
-          activeMonth={index.activeMonth}
-          demoMonth={index.demoMonth}
-        />
+        <HeaderPortal>
+          <MonthPicker
+            current={m.month}
+            counts={index.counts}
+            activeMonth={index.activeMonth}
+            demoMonth={index.demoMonth}
+          />
+        </HeaderPortal>
       </Band>
 
       {/* ---- the one number ------------------------------------ */}

@@ -4,8 +4,10 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 /* Desktop only: the strip that runs across the top of the content
-   area, naming the page the way the reference does - title on the
-   left, the person on the right. Phones never render this. */
+   area, naming the page the way the reference does. It stays put
+   while the page scrolls, and it is where each page's tools land
+   (month picker, download) via HeaderPortal. The face shows only on
+   chat - everywhere else the rail's Profile tab already carries it. */
 
 const TITLES: [string, string][] = [
   ["/expenses/", "Expense"],
@@ -31,22 +33,27 @@ export function DesktopHeader({
   const title =
     TITLES.find(([p]) => (p === "/" ? pathname === "/" : pathname.startsWith(p)))?.[1] ??
     "Biblo";
+  const isChat = pathname.startsWith("/chat");
 
   return (
-    <header className="hidden w-full shrink-0 items-center justify-between border-b border-rule bg-bone px-8 py-4 lg:flex">
+    <header className="sticky top-0 z-30 hidden h-[3.75rem] w-full shrink-0 items-center justify-between border-b border-rule bg-bone px-8 lg:flex">
       <p className="text-title text-ink">{title}</p>
-      <span className="flex items-center gap-2.5">
-        {name ? <span className="text-meta text-ink/70">{name}</span> : null}
-        {avatar ? (
-          <Image
-            src={`/avatars/${avatar}.png`}
-            alt=""
-            width={32}
-            height={32}
-            className="size-8 rounded-full object-cover"
-          />
-        ) : null}
-      </span>
+      {isChat ? (
+        <span className="flex items-center gap-2.5">
+          {name ? <span className="text-meta text-ink/70">{name}</span> : null}
+          {avatar ? (
+            <Image
+              src={`/avatars/${avatar}.png`}
+              alt=""
+              width={32}
+              height={32}
+              className="size-8 rounded-full object-cover"
+            />
+          ) : null}
+        </span>
+      ) : (
+        <span id="header-tools" className="flex items-center gap-1" />
+      )}
     </header>
   );
 }

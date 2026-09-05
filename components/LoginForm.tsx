@@ -47,7 +47,9 @@ export function LoginForm({ to }: { to: string }) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-sage px-6">
+    /* Desktop: the column's own fill would draw edges against the
+       ground, so it goes transparent - one colour wall to wall. */
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-sage px-6 lg:bg-transparent">
       <span className="flex items-center gap-1">
         <Logo size={42} className="text-ink" />
         <Wordmark text="biblo" className="text-[2rem]" />

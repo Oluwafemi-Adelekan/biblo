@@ -6,6 +6,7 @@ import { Comb } from "@/components/ui/Comb";
 import { Amount, Label } from "@/components/ui/Text";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { MonthPicker } from "@/components/MonthPicker";
+import { HeaderPortal } from "@/components/HeaderPortal";
 import { MaskIncome } from "@/components/MaskIncome";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { dayLabel, monthLabel, shortNaira } from "@/lib/format";
@@ -48,28 +49,30 @@ export default async function Expenses({
     <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
       {/* Only the title row sticks. Pinning the whole block, chart
           and filters included, would eat half the screen. On desktop
-          it floats on the ground instead - the header names the page. */}
+          the row hides and its tools ride the fixed header instead. */}
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3 lg:static lg:bg-transparent lg:p-0"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3 lg:hidden"
       >
         <Label as="h1" tone="dim">
           {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
         </Label>
         <span className="flex items-center gap-1">
-        <ExportMenu
-          from={m.periodFrom}
-          to={m.periodLast}
-          category={active?.id}
-        />
-        <MonthPicker
-          current={m.month}
-          counts={index.counts}
-          activeMonth={index.activeMonth}
-          demoMonth={index.demoMonth}
-          basePath="/expenses"
-        />
+        <HeaderPortal>
+          <ExportMenu
+            from={m.periodFrom}
+            to={m.periodLast}
+            category={active?.id}
+          />
+          <MonthPicker
+            current={m.month}
+            counts={index.counts}
+            activeMonth={index.activeMonth}
+            demoMonth={index.demoMonth}
+            basePath="/expenses"
+          />
+        </HeaderPortal>
         </span>
       </Band>
 

@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/Text";
 import { BudgetForm } from "@/components/BudgetForm";
 import { AddCategory } from "@/components/AddCategory";
 import { MonthPicker } from "@/components/MonthPicker";
+import { HeaderPortal } from "@/components/HeaderPortal";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { getMonth, getMonthIndex } from "@/lib/data";
 import { monthLabel } from "@/lib/format";
@@ -22,18 +23,20 @@ export default async function BudgetPage() {
       <Band
         tone="sage"
         pad="none"
-        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-4 lg:static lg:bg-transparent lg:p-0"
+        className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-4 lg:hidden"
       >
         <Label as="h1" tone="dim">
           {monthLabel(m.month)} budget
         </Label>
-        <MonthPicker
-          current={m.month}
-          counts={index.counts}
-          activeMonth={index.activeMonth}
-          demoMonth={index.demoMonth}
-          basePath="/budget"
-        />
+        <HeaderPortal>
+          <MonthPicker
+            current={m.month}
+            counts={index.counts}
+            activeMonth={index.activeMonth}
+            demoMonth={index.demoMonth}
+            basePath="/budget"
+          />
+        </HeaderPortal>
       </Band>
 
       <div className="lg-card">

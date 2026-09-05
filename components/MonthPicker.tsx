@@ -59,7 +59,9 @@ export function MonthPicker({
         aria-label={`Month: ${FULL[curM - 1]} ${curY}. Change month.`}
         className="flex items-center gap-1.5 px-2.5 py-1 text-label uppercase text-ink/70 transition-[transform,color] duration-press ease-out-strong hover:text-ink active:scale-[0.96]"
       >
-        {NAMES[curM - 1]} {curY}
+        {/* The header has room, so desktop spells the month out. */}
+        <span className="lg:hidden">{NAMES[curM - 1]} {curY}</span>
+        <span className="hidden lg:inline">{FULL[curM - 1]} {curY}</span>
         <CaretRight size={11} weight="bold" className="rotate-90" />
       </button>
 
