@@ -4,6 +4,11 @@
 -- Existing single-user data is stamped with the zero sentinel and is
 -- claimed by the owner's real auth id the first time they sign in.
 
+-- The old FK tied expenses to a globally-unique category id; with
+-- per-user categories that uniqueness is gone, and the app joins by
+-- hand anyway.
+alter table expenses drop constraint if exists expenses_category_id_fkey;
+
 create table if not exists profiles (
   id uuid primary key,
   email text unique not null,
