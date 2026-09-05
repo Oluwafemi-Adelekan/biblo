@@ -476,9 +476,11 @@ export function Chat({
 
       {/* ---- composer ------------------------------------------
           Desktop: lifted off the floor with breathing room below,
-          the way every chat product sits its bar. Phones stay
+          the way every chat product sits its bar, and wrapped in a
+          veil that blurs whatever scrolls beneath it. Phones stay
           flush - thumbs live at the bottom edge. */}
-      <div className="lg-card sticky bottom-0 border-t border-rule bg-bone lg:bottom-5 lg:mb-5 lg:border-t-0">
+      <div className="composer-veil sticky bottom-0 lg:pb-5 lg:pt-6">
+      <div className="lg-card relative z-[1] border-t border-rule bg-bone lg:border-t-0">
         {openAsk ? <ApprovalCard key={openAsk.id} m={openAsk} /> : null}
 
         {/* Hidden, not unmounted, while a question is up: the draft,
@@ -693,6 +695,7 @@ export function Chat({
           onChange={take}
         />
         </div>
+      </div>
       </div>
 
       <AttachSheet

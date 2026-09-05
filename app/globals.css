@@ -391,6 +391,20 @@ textarea::-webkit-scrollbar {
     box-shadow: 0 0 0 1px var(--color-rule);
   }
 
+  /* The veil under the floating composer: messages sliding beneath
+     the bar blur out instead of competing with what is being typed.
+     A pseudo-element, not a filter on the wrapper - the bar itself
+     (z-index 1, above it) must stay sharp. The mask fades the blur
+     in from the top so it has no hard edge. */
+  .composer-veil::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    backdrop-filter: blur(7px);
+    mask-image: linear-gradient(to bottom, transparent, black 2.25rem);
+  }
+
   /* Sheets become centred modals: same panel, same platform dialog,
      but it fades and settles in place instead of sliding up from a
      bottom edge that is nowhere near the pointer. The rail is 14rem
