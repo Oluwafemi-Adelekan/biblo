@@ -46,9 +46,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={archivo.variable}>
       <body className="bg-sage-dim" data-hide-income={hideIncome ? "1" : "0"}>
-        <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-sage shadow-[0_0_0_1px_var(--color-rule)]">
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-            {children}
+        {/* Phone: the familiar column. Desktop (lg+): the nav becomes
+            a left rail and the column widens to a comfortable page,
+            purely additive - the phone classes are untouched. */}
+        <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-sage shadow-[0_0_0_1px_var(--color-rule)] lg:max-w-none lg:flex-row lg:bg-sage-dim lg:shadow-none">
+          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:order-2 lg:items-center">
+            <div className="flex w-full flex-1 flex-col lg:max-w-[680px] lg:bg-sage lg:shadow-[0_0_0_1px_var(--color-rule)]">
+              {children}
+            </div>
           </main>
           <BottomNav pending={pending} avatar={avatar} />
         </div>

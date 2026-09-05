@@ -11,6 +11,8 @@ import {
   UserCircle,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
+import { Logo } from "@/components/ui/Logo";
+import { Wordmark } from "@/components/ui/Text";
 import { feel } from "@/lib/feedback";
 
 /* Four equal tabs, each an icon over its name. Chat is one of them,
@@ -26,7 +28,7 @@ const TABS = [
 
 /* Screens where there is nobody signed in (or a lock in the way)
    have no business showing the furniture behind them. */
-const BARE = ["/login", "/unlock", "/pin"];
+const BARE = ["/login", "/unlock", "/pin", "/report"];
 
 export function BottomNav({
   pending,
@@ -40,11 +42,15 @@ export function BottomNav({
 
   return (
     <nav
-      className="shrink-0 border-t border-rule bg-bone"
+      className="shrink-0 border-t border-rule bg-bone lg:h-full lg:w-56 lg:border-r lg:border-t-0 lg:px-3 lg:pt-7"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Main"
     >
-      <div className="flex items-stretch">
+      <span className="hidden items-center gap-1 px-3 pb-8 lg:flex">
+        <Logo size={26} className="text-ink" />
+        <Wordmark text="biblo" className="text-[1.2rem]" />
+      </span>
+      <div className="flex items-stretch lg:flex-col lg:gap-1">
         {TABS.map((t) => (
           <Tab
             key={t.href}
@@ -84,7 +90,11 @@ function Tab({
       onClick={feel}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} being sorted` : undefined}
-      className="flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]"
+      className={cn(
+        "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]",
+        "lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:px-3",
+        active && "lg:bg-ink/5",
+      )}
     >
       <span className="relative flex h-6 items-center justify-center">
         {face ? (
