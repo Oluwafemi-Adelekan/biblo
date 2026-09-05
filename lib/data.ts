@@ -209,6 +209,10 @@ export const getMonth = cache(async (month?: string) => {
   return {
     config: cfg,
     month: activeMonth,
+    /* The period's real bounds, for export links and anything else
+       that needs dates rather than a label. Last is inclusive. */
+    periodFrom: period.from,
+    periodLast: addDays(period.to, -1),
     isDemo: activeMonth === cfg.demoMonth,
     budget,
     categories,

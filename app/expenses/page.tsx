@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DownloadSimple } from "@phosphor-icons/react/ssr";
 import { requirePin } from "@/lib/pin";
 import { Band } from "@/components/ui/Band";
 import { Comb } from "@/components/ui/Comb";
@@ -55,6 +56,14 @@ export default async function Expenses({
         <Label as="h1" tone="dim">
           {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
         </Label>
+        <span className="flex items-center gap-1">
+        <a
+          href={`/api/export?from=${m.periodFrom}&to=${m.periodLast}${active ? `&category=${active.id}` : ""}`}
+          aria-label="Export this view as a spreadsheet"
+          className="inline-flex size-9 items-center justify-center text-ink/60 transition-[transform,color] duration-press ease-out-strong hover:text-ink active:scale-[0.92]"
+        >
+          <DownloadSimple size={18} />
+        </a>
         <MonthPicker
           current={m.month}
           counts={index.counts}
@@ -62,6 +71,7 @@ export default async function Expenses({
           demoMonth={index.demoMonth}
           basePath="/expenses"
         />
+        </span>
       </Band>
 
       <Band tone="sage" pad="none" className="px-5 pb-5">

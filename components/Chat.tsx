@@ -963,7 +963,9 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
    prose and become source chips underneath, favicon and domain,
    the way search products show references; whatever links remain
    inline become actual links. */
-const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+/* Absolute links from web citations, and root-relative ones so the
+   assistant can hand out in-app doors like /api/export. */
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]+)\)/g;
 const CITATION_GROUP =
   /\s*\(\s*((?:\[[^\]]+\]\(https?:\/\/[^\s)]+\)(?:[,;]\s*)?)+)\)/g;
 
@@ -1051,8 +1053,8 @@ function Reply({
         <a
           key={i}
           href={t.url}
-          target="_blank"
-          rel="noreferrer"
+          target={t.url.startsWith("http") ? "_blank" : undefined}
+          rel={t.url.startsWith("http") ? "noreferrer" : undefined}
           className="underline decoration-ink/35 underline-offset-2 hover:decoration-ink"
         >
           {chunk}
