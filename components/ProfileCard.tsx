@@ -152,12 +152,14 @@ export function ProfileCard({
       </Sheet>
 
       <Sheet open={open} onClose={() => setOpen(false)} label="Choose your face">
-        {/* Two thirds of the screen: enough room to breathe, the
-            button flat at the bottom. */}
-        <div className="flex min-h-[66dvh] flex-col bg-bone">
+        {/* Seventy percent of the screen. The content block keeps its
+            own tight spacing and sits at the top; the tile colour
+            wraps only that block, and the room left over is plain
+            ground between the strip and the button. */}
+        <div className="flex min-h-[70dvh] flex-col bg-bone">
           {/* The chosen one, on its own tile colour. */}
           <div
-            className="flex flex-1 flex-col items-center justify-center px-5 pb-12 pt-5 transition-colors duration-200"
+            className="flex flex-col items-center px-5 pb-12 pt-5 transition-colors duration-200"
             style={{ backgroundColor: avatarTile(sel) }}
           >
             <div className="flex w-full items-center justify-between">
