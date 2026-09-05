@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Check, Flame, X } from "@phosphor-icons/react";
+import { Sheet } from "@/components/ui/Sheet";
 import { updateSettings } from "@/app/actions";
 import { AVATARS, avatarName, avatarSrc, avatarTile } from "@/lib/avatars";
 import { cn } from "@/lib/cn";
 import { feel } from "@/lib/feedback";
 
-/* The reference Femi gave, in the house palette: face centred and
-   large, name and email under it, the streak as a chip - then air
-   before anything else. Tapping the face opens a full overlay: the
-   chosen one big on its tile colour, its name in a pill (names only
-   speak when chosen), a strip of the rest, and one clear button. */
+/* The reference, refined by Femi's second look: the face lives as
+   its own circle - no tile corners peeking out anywhere. Tapping it
+   slides up a half sheet: the chosen one large on its tile colour,
+   its name in a pill, the rest in a strip where only the chosen
+   wears a background and the check. */
 
 export function ProfileCard({
   name,
@@ -28,18 +29,23 @@ export function ProfileCard({
   const [open, setOpen] = useState(false);
   const [applied, setApplied] = useState(avatarId);
   const [sel, setSel] = useState(avatarId);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [shownName, setShownName] = useState(name);
+  const [nameValue, setNameValue] = useState(name);
   const [, start] = useTransition();
 
-  useEffect(() => {
-    if (!open) return;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  const saveName = () => {
+    const next = nameValue.trim().slice(0, 40);
+    if (!next) return;
+    feel();
+    setShownName(next);
+    setNameOpen(false);
+    start(async () => {
+      await updateSettings({ name: next });
+    });
+  };
 
-  /* The chosen face presents itself: the strip carries it into view
-     whenever it changes, and on open. */
+  /* The chosen face presents itself in the strip. */
   const stripRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -67,22 +73,29 @@ export function ProfileCard({
             setOpen(true);
           }}
           aria-label="Change your face"
-          className="rounded-[22px] transition-transform duration-press ease-out-strong active:scale-[0.95]"
-          style={{ backgroundColor: avatarTile(applied) }}
+          className="rounded-full transition-transform duration-press ease-out-strong active:scale-[0.95]"
         >
           <Image
             src={avatarSrc(applied)}
             alt=""
             width={112}
             height={112}
-            className="size-28 rounded-[22px] object-cover"
+            className="size-28 rounded-full object-cover"
           />
         </button>
 
-        <p className="mt-5 text-headline text-ink">{name}</p>
-        {email ? (
-          <p className="mt-1 text-meta text-ink/55">{email}</p>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            setNameValue(shownName);
+            setNameOpen(true);
+          }}
+          aria-label="Change your name"
+          className="mt-5 text-headline text-ink transition-opacity duration-press active:opacity-70"
+        >
+          {shownName}
+        </button>
+        {email ? <p className="mt-1 text-meta text-ink/55">{email}</p> : null}
 
         <span
           className="mt-5 inline-flex items-center gap-2 border border-rule bg-bone px-4 py-2"
@@ -99,20 +112,54 @@ export function ProfileCard({
         </span>
       </div>
 
-      {open ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose your face"
-          className="fixed inset-0 z-50 mx-auto flex max-w-[430px] flex-col bg-bone"
-        >
-          {/* The chosen one, large, on its own tile colour. */}
+      <Sheet open={nameOpen} onClose={() => setNameOpen(false)} label="Your name">
+        <div className="bg-bone">
+          <div className="flex items-center justify-between border-b border-rule px-5 py-4">
+            <p className="text-title text-ink">Your name</p>
+            <button
+              type="button"
+              onClick={() => setNameOpen(false)}
+              aria-label="Close"
+              className="inline-flex size-9 items-center justify-center rounded-full text-ink/70 transition-transform duration-press ease-out-strong active:scale-[0.92]"
+            >
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+          <div className="px-5 py-6">
+            <input
+              autoFocus
+              type="text"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              aria-label="Your name"
+              maxLength={40}
+              className="chat-field w-full border-b border-ink/25 bg-transparent pb-2 text-center text-headline text-ink outline-none focus:border-ink"
+            />
+            <p className="mt-3 text-center text-meta text-ink/55">
+              Whatever you like being called. First names do fine here.
+            </p>
+            <button
+              type="button"
+              disabled={!nameValue.trim()}
+              onClick={saveName}
+              className="mt-6 w-full bg-ink px-5 py-4 text-label uppercase text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.98] disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+          <div className="h-[max(0.5rem,env(safe-area-inset-bottom))]" />
+        </div>
+      </Sheet>
+
+      <Sheet open={open} onClose={() => setOpen(false)} label="Choose your face">
+        <div className="bg-bone">
+          {/* The chosen one, on its own tile colour. */}
           <div
-            className="flex flex-col items-center px-5 pb-14 pt-5 transition-colors duration-200"
+            className="flex flex-col items-center px-5 pb-12 pt-5 transition-colors duration-200"
             style={{ backgroundColor: avatarTile(sel) }}
           >
             <div className="flex w-full items-center justify-between">
-              <p className="text-label uppercase text-ink/70">Choose your face</p>
+              <p className="text-title text-ink">Choose your face</p>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -130,18 +177,18 @@ export function ProfileCard({
             <Image
               src={avatarSrc(sel)}
               alt=""
-              width={480}
-              height={480}
+              width={400}
+              height={400}
               priority
-              className="mt-4 aspect-square w-full max-w-[300px] object-contain"
+              className="mt-4 size-48 rounded-full object-cover"
             />
           </div>
 
-          {/* The rest of the cast; the chosen one goes fully round
-              and wears the check, like the reference. */}
+          {/* Only the chosen face wears a background and the check;
+              the rest are simply themselves. */}
           <div
             ref={stripRef}
-            className="scrollbar-none -mt-10 flex gap-3 overflow-x-auto px-5 pb-1 pt-1"
+            className="scrollbar-none -mt-9 flex gap-3 overflow-x-auto px-5 pb-2 pt-1"
           >
             {AVATARS.map((a) => {
               const active = a.id === sel;
@@ -156,22 +203,17 @@ export function ProfileCard({
                   aria-label={a.name}
                   aria-pressed={active}
                   className={cn(
-                    "relative shrink-0 transition-[transform,border-radius] duration-press ease-out-strong active:scale-[0.93]",
-                    active
-                      ? "rounded-full shadow-[0_0_0_2px_var(--color-ink)]"
-                      : "rounded-[16px] shadow-[0_0_0_1px_var(--color-rule)]",
+                    "relative shrink-0 rounded-full transition-transform duration-press ease-out-strong active:scale-[0.93]",
+                    active && "shadow-[0_0_0_2px_var(--color-ink)]",
                   )}
-                  style={{ backgroundColor: avatarTile(a.id) }}
+                  style={active ? { backgroundColor: avatarTile(a.id) } : undefined}
                 >
                   <Image
                     src={avatarSrc(a.id)}
                     alt=""
                     width={72}
                     height={72}
-                    className={cn(
-                      "size-[72px] object-cover",
-                      active ? "rounded-full" : "rounded-[16px]",
-                    )}
+                    className="size-[72px] rounded-full object-cover"
                   />
                   {active ? (
                     <span className="absolute -bottom-0.5 -right-0.5 inline-flex size-5 items-center justify-center rounded-full bg-ink text-bone shadow-[0_0_0_2px_var(--color-bone)]">
@@ -183,7 +225,7 @@ export function ProfileCard({
             })}
           </div>
 
-          <div className="mt-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
             <button
               type="button"
               onClick={apply}
@@ -193,7 +235,7 @@ export function ProfileCard({
             </button>
           </div>
         </div>
-      ) : null}
+      </Sheet>
     </>
   );
 }

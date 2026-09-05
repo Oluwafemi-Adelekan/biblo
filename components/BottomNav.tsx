@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   ChatCircle,
@@ -23,7 +24,13 @@ const TABS = [
   { href: "/you", label: "You", icon: UserCircle },
 ];
 
-export function BottomNav({ pending }: { pending: number }) {
+export function BottomNav({
+  pending,
+  avatar,
+}: {
+  pending: number;
+  avatar?: string | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -39,6 +46,7 @@ export function BottomNav({ pending }: { pending: number }) {
             {...t}
             pathname={pathname}
             badge={t.href === "/chat" ? pending : 0}
+            face={t.href === "/you" ? avatar ?? undefined : undefined}
           />
         ))}
       </div>
@@ -52,12 +60,15 @@ function Tab({
   icon: Icon,
   pathname,
   badge = 0,
+  face,
 }: {
   href: string;
   label: string;
   icon: React.ComponentType<{ size?: number; weight?: "regular" | "fill" }>;
   pathname: string;
   badge?: number;
+  /** The You tab wears the person's own avatar, like the reference. */
+  face?: string;
 }) {
   const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -71,7 +82,20 @@ function Tab({
       className="flex flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform duration-press ease-out-strong active:scale-[0.94]"
     >
       <span className="relative flex h-6 items-center justify-center">
-        <Icon size={22} weight={active ? "fill" : "regular"} />
+        {face ? (
+          <Image
+            src={`/avatars/${face}.png`}
+            alt=""
+            width={24}
+            height={24}
+            className={cn(
+              "size-6 rounded-full object-cover",
+              active && "shadow-[0_0_0_2px_var(--color-ink)]",
+            )}
+          />
+        ) : (
+          <Icon size={22} weight={active ? "fill" : "regular"} />
+        )}
         {badge > 0 ? (
           <span
             className="absolute -right-2 -top-0.5 size-2.5 rounded-full bg-ember ring-2 ring-bone"

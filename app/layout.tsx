@@ -30,8 +30,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
      entire app, which is what an unhandled throw here produces. */
   let pending = 0;
   let hideIncome = false;
+  let avatar: string | null = null;
   try {
-    hideIncome = (await getSettings()).hideIncome;
+    const s = await getSettings();
+    hideIncome = s.hideIncome;
+    avatar = s.avatar ?? null;
   } catch {}
   try {
     const m = await getMonth();
@@ -47,7 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
             {children}
           </main>
-          <BottomNav pending={pending} />
+          <BottomNav pending={pending} avatar={avatar} />
         </div>
       </body>
     </html>

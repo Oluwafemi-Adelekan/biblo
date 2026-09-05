@@ -101,64 +101,92 @@ export function SettingsPanel({
             : "A second lock for whoever is holding your unlocked phone."
         }
         control={
-          pinState === "idle" ? (
-            <span className="flex items-center gap-3">
-              {pinSet ? (
-                <button
-                  type="button"
-                  onClick={() => savePin(null)}
-                  className="text-label uppercase text-ink/55 underline underline-offset-2 hover:text-ink"
-                >
-                  Remove
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setPinState("editing")}
-                className="border border-ink/30 px-3 py-1.5 text-label uppercase text-ink transition-[background-color] duration-press hover:bg-ink/5"
-              >
-                {pinSet ? "Change" : "Set"}
-              </button>
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <input
-                autoFocus
-                type="password"
-                inputMode="numeric"
-                value={pinValue}
-                onChange={(e) => setPinValue(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                placeholder="4–8 digits"
-                aria-label="New PIN"
-                disabled={pinState === "busy"}
-                className="w-24 border-b border-ink/25 bg-transparent pb-1 text-body tracking-[0.2em] text-ink outline-none placeholder:tracking-normal placeholder:text-ink/30 focus:border-ink"
-              />
-              <button
-                type="button"
-                disabled={pinState === "busy" || pinValue.length < 4}
-                onClick={() => savePin(pinValue)}
-                className="bg-ink px-3 py-1.5 text-label uppercase text-bone disabled:opacity-40"
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPinState("idle");
-                  setPinValue("");
-                  setError("");
-                }}
-                className="text-label uppercase text-ink/55 hover:text-ink"
-              >
-                Cancel
-              </button>
-            </span>
-          )
+          <button
+            type="button"
+            onClick={() => setPinState("editing")}
+            className="shrink-0 border border-ink/30 px-3 py-1.5 text-label uppercase text-ink transition-[background-color] duration-press hover:bg-ink/5"
+          >
+            {pinSet ? "Change" : "Set"}
+          </button>
         }
       />
-      {error ? (
-        <p className="border-t border-rule bg-ember px-5 py-2.5 text-meta text-ink">{error}</p>
-      ) : null}
+
+      {/* The PIN gets the same sheet treatment as the month picker:
+          the row is just a door, the work happens in the house style. */}
+      <Sheet
+        open={pinState !== "idle"}
+        onClose={() => {
+          setPinState("idle");
+          setPinValue("");
+          setError("");
+        }}
+        label="App PIN"
+      >
+        <div className="bg-bone">
+          <div className="flex items-center justify-between border-b border-rule px-5 py-4">
+            <p className="text-title text-ink">App PIN</p>
+            <button
+              type="button"
+              onClick={() => {
+                setPinState("idle");
+                setPinValue("");
+                setError("");
+              }}
+              aria-label="Close"
+              className="inline-flex size-9 items-center justify-center rounded-full text-ink/70 transition-transform duration-press ease-out-strong active:scale-[0.92]"
+            >
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+
+          <div className="px-5 py-6">
+            <label htmlFor="new-pin" className="block text-label uppercase text-ink/55">
+              {pinSet ? "New PIN" : "PIN"}
+            </label>
+            <input
+              id="new-pin"
+              autoFocus
+              type="password"
+              inputMode="numeric"
+              value={pinValue}
+              onChange={(e) => setPinValue(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              aria-label="New PIN"
+              disabled={pinState === "busy"}
+              className="chat-field mt-2 w-full border-b border-ink/25 bg-transparent pb-2 text-center text-headline tracking-[0.3em] text-ink outline-none focus:border-ink"
+            />
+            <p className="mt-3 text-center text-meta text-ink/55">
+              4 to 8 digits. Asked for whenever the app is opened.
+            </p>
+
+            {error ? (
+              <p className="mt-4 bg-ember px-3 py-2 text-center text-meta text-ink">
+                {error}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              disabled={pinState === "busy" || pinValue.length < 4}
+              onClick={() => savePin(pinValue)}
+              className="mt-6 w-full bg-ink px-5 py-4 text-label uppercase text-bone transition-[transform,opacity] duration-press ease-out-strong active:scale-[0.98] disabled:opacity-50"
+            >
+              {pinState === "busy" ? "Saving" : "Save PIN"}
+            </button>
+
+            {pinSet ? (
+              <button
+                type="button"
+                disabled={pinState === "busy"}
+                onClick={() => savePin(null)}
+                className="mt-4 w-full py-2 text-center text-label uppercase text-ink/55 transition-colors duration-press hover:text-ink"
+              >
+                Remove the PIN
+              </button>
+            ) : null}
+          </div>
+          <div className="h-[max(0.5rem,env(safe-area-inset-bottom))]" />
+        </div>
+      </Sheet>
 
       <form action={signOutAction} className="border-t border-rule">
         <button

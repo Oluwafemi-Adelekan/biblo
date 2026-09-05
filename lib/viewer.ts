@@ -49,10 +49,12 @@ async function ensureProfile(uid: string, email: string, fullName?: string) {
   if (existing) {
     // A profile from before names were kept learns its name now.
     const s = (existing.settings ?? {}) as Record<string, unknown>;
-    if (fullName && !s.name) {
+    // First names only: this is not a government application.
+    const first = fullName?.trim().split(/\s+/)[0];
+    if (first && !s.name) {
       await db()
         .from("profiles")
-        .update({ settings: { ...s, name: fullName } })
+        .update({ settings: { ...s, name: first } })
         .eq("id", uid);
     }
     return;
@@ -123,7 +125,7 @@ export const viewerId = cache(async (): Promise<string> => {
 
   const user = await authedUser();
   if (user?.email) {
-    await ensureProfile(user.id, user.email);
+    await ensureProfile(user.id, user.email, (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined);
     return user.id;
   }
 

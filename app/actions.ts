@@ -365,6 +365,7 @@ export async function updateSettings(patch: {
   showTime?: boolean;
   monthStart?: number;
   avatar?: string;
+  name?: string;
 }) {
   const { isAvatar } = await import("@/lib/avatars");
   const clean: Partial<Settings> = {};
@@ -372,6 +373,10 @@ export async function updateSettings(patch: {
   if (typeof patch.showTime === "boolean") clean.showTime = patch.showTime;
   if (typeof patch.avatar === "string" && isAvatar(patch.avatar))
     clean.avatar = patch.avatar;
+  if (typeof patch.name === "string") {
+    const name = patch.name.trim().slice(0, 40);
+    if (name) clean.name = name;
+  }
   if (
     Number.isInteger(patch.monthStart) &&
     patch.monthStart! >= 1 &&
