@@ -9,7 +9,7 @@
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:420px;background:#e3e2d4;border:1px solid #a8ad96;">
           <tr>
             <td style="padding:36px 32px 8px;font-family:Arial,Helvetica,sans-serif;">
-              <p style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#16180f;">biblo</p>
+              <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle;"><img src="https://biblo-eight.vercel.app/brand/logo-email.png" width="34" height="34" alt="" style="display:block;"/></td><td style="vertical-align:middle;padding-left:6px;font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#16180f;">biblo</td></tr></table>
             </td>
           </tr>
           <tr>
@@ -21,7 +21,7 @@
           </tr>
           <tr>
             <td style="padding:24px 32px 8px;">
-              <a href="{{ .ConfirmationURL }}"
+              <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email"
                  style="display:block;background:#16180f;color:#e3e2d4;text-decoration:none;text-align:center;padding:16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
                 Open Biblo
               </a>
