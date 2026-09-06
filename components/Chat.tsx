@@ -315,6 +315,14 @@ export function Chat({
     if (inFlight.current || sending) return;
     if (!text.trim() && files.length === 0) return;
 
+    /* Send means done talking. The recording is cut hard - a polite
+       stop lets the engine flush one last result into the freshly
+       cleared field, which read as "it's still recording". */
+    if (listening) {
+      stop(true);
+      measureWrap("");
+    }
+
     inFlight.current = true;
     feel();
     sentSound();
@@ -495,10 +503,15 @@ export function Chat({
           </p>
         ) : null}
 
+        {/* Staged attachments: one uniform strip above the field,
+            every tile the same height, the way the big chat apps do
+            it. Images fill their square; other files get an icon,
+            the name and the kind. Many attachments scroll sideways
+            instead of growing downward. */}
         {files.length > 0 ? (
-          <ul className="flex flex-wrap gap-2 px-4 pt-3">
+          <ul className="scrollbar-none flex gap-2 overflow-x-auto px-4 pt-3">
             {files.map((f, i) => (
-              <li key={i} className="relative">
+              <li key={i} className="relative shrink-0">
                 {f.preview ? (
                   <button
                     type="button"
@@ -510,14 +523,21 @@ export function Chat({
                     <img
                       src={f.preview}
                       alt={f.file.name}
-                      className="size-14 object-cover"
+                      className="size-16 object-cover"
                     />
                   </button>
                 ) : (
-                  <span className="flex items-center gap-2 border border-rule bg-bone-lift py-1.5 pl-2 pr-6">
-                    <FileText size={14} className="text-ink/60" />
-                    <span className="max-w-[9rem] truncate text-label text-ink/70">
-                      {f.file.name}
+                  <span className="flex h-16 w-44 items-center gap-2.5 border border-rule bg-bone-lift px-3">
+                    <FileText size={20} className="shrink-0 text-ink/60" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-meta text-ink">
+                        {f.file.name}
+                      </span>
+                      <span className="mt-0.5 block text-label uppercase text-ink/50">
+                        {f.file.name.includes(".")
+                          ? f.file.name.split(".").pop()
+                          : f.file.type.split("/").pop() || "file"}
+                      </span>
                     </span>
                   </span>
                 )}
@@ -528,10 +548,7 @@ export function Chat({
                     if (f.preview) URL.revokeObjectURL(f.preview);
                     setFiles((p) => p.filter((_, j) => j !== i));
                   }}
-                  className={cn(
-                    "absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-bone",
-                    !f.preview && "bg-transparent text-ink/50 hover:text-ink right-0.5 top-1/2 -translate-y-1/2",
-                  )}
+                  className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-bone ring-2 ring-bone"
                 >
                   <X size={11} weight="bold" />
                 </button>
@@ -1516,6 +1533,7 @@ type SpeechRecognitionLike = {
   lang: string;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
   onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
@@ -1531,6 +1549,9 @@ function useDictation(onTranscript: (text: string) => void) {
   const sessionFinal = useRef("");
   /** What the user wants, as opposed to what the engine is doing. */
   const wanted = useRef(false);
+  /** Set on a discarding stop: late results from the engine are
+   *  thrown away instead of reaching the field. */
+  const deaf = useRef(false);
 
   /* Whether the browser can do this is a fixed fact about the
      browser, not state that changes, so it is read through
@@ -1569,6 +1590,7 @@ function useDictation(onTranscript: (text: string) => void) {
        keeps every word exactly as spoken. See lib/transcript.ts. */
     const merge = /Android/i.test(navigator.userAgent);
     r.onresult = (e) => {
+      if (deaf.current) return;
       const { settled, interim } = readResults(e.results, { merge });
       sessionFinal.current = settled;
       cb.current(joinTranscript(carried.current, settled, interim, { merge }));
@@ -1620,6 +1642,7 @@ function useDictation(onTranscript: (text: string) => void) {
     carried.current = "";
     sessionFinal.current = "";
     wanted.current = true;
+    deaf.current = false;
     try {
       r.start();
       setListening(true);
@@ -1629,12 +1652,22 @@ function useDictation(onTranscript: (text: string) => void) {
     }
   };
 
-  const stop = () => {
+  /* Two flavours of stopping. The mic button stops politely: the
+     engine may still deliver one final, better-punctuated result,
+     and it lands in the field the user is still looking at. Send
+     stops with discard=true: everything already on screen has been
+     sent, so anything the engine says after this is noise. */
+  const stop = (discard = false) => {
     cb.current = onTranscript;
     wanted.current = false;
     const r = ref.current;
     if (r) {
-      try { r.stop(); } catch {}
+      if (discard) {
+        deaf.current = true;
+        try { (r.abort ?? r.stop).call(r); } catch {}
+      } else {
+        try { r.stop(); } catch {}
+      }
     }
     setListening(false);
   };
