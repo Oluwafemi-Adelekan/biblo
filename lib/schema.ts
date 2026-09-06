@@ -124,6 +124,9 @@ export const Message = z.object({
    *  and lifted out by the row mappers. */
   meta: z
     .object({
+      /** Every expense this message filed or changed, when there was
+       *  more than one - expenseId alone only holds the first. */
+      expenseIds: z.array(z.string()).optional(),
       approval: z
         .object({
           state: z.enum(["open", "approved", "denied"]),

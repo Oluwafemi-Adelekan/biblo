@@ -464,7 +464,14 @@ export function Chat({
                 message={m}
                 sending={m.id === PENDING_ID}
                 onView={setViewer}
-                expense={m.expenseId ? expenses[m.expenseId] : undefined}
+                cards={(m.meta?.expenseIds?.length
+                  ? m.meta.expenseIds
+                  : m.expenseId
+                    ? [m.expenseId]
+                    : []
+                )
+                  .filter((id) => expenses[id])
+                  .map((id) => ({ id, e: expenses[id] }))}
                 reveal={m.id === revealId}
               />
             ),
@@ -823,13 +830,13 @@ function Bubble({
   message: m,
   sending = false,
   onView,
-  expense,
+  cards = [],
   reveal = false,
 }: {
   message: Message;
   sending?: boolean;
   onView?: (url: string) => void;
-  expense?: ExpenseLite;
+  cards?: { id: string; e: ExpenseLite }[];
   reveal?: boolean;
 }) {
   const mine = m.from === "you";
@@ -855,8 +862,11 @@ function Bubble({
               : "max-w-[85%] bg-bone text-ink ring-1 ring-inset ring-ink/8 px-3.5 py-2.5",
         )}
       >
+        {/* Attachments sit as a tidy strip on top of the bubble, the
+            way the big chat apps arrange them: one image gets a
+            filled card, several get uniform squares side by side. */}
         {m.attachments.length > 0 ? (
-          <ul className={cn("space-y-2", m.text ? "mb-2" : "")}>
+          <ul className={cn("flex flex-wrap gap-1.5", m.text ? "mb-2" : "")}>
             {m.attachments.map((a) => (
               <li key={a.url}>
                 {a.type.startsWith("image/") ? (
@@ -873,7 +883,10 @@ function Bubble({
                       width={200}
                       height={200}
                       unoptimized
-                      className="max-h-48 w-auto object-cover"
+                      className={cn(
+                        "object-cover",
+                        m.attachments.length > 1 ? "size-28" : "h-48 w-40",
+                      )}
                     />
                   </button>
                 ) : (
@@ -925,10 +938,15 @@ function Bubble({
             })}
       </span>
 
-      {/* What this message did to the money, as a thing you can
-          open rather than a word you have to spot. */}
-      {expense && m.expenseId && !mine ? (
-        <ExpenseCard id={m.expenseId} e={expense} />
+      {/* What this message did to the money, as things you can open
+          rather than words you have to spot - one card per expense.
+          Wide screens fit them side by side; phones stack them. */}
+      {cards.length > 0 && !mine ? (
+        <div className="mt-1.5 flex w-full max-w-[85%] flex-col gap-1.5 lg:max-w-full lg:flex-row lg:flex-wrap">
+          {cards.map((c) => (
+            <ExpenseCard key={c.id} id={c.id} e={c.e} />
+          ))}
+        </div>
       ) : null}
 
       {/* A question that has been answered keeps its outcome. */}
@@ -1289,7 +1307,7 @@ function ApprovalCard({ m }: { m: Message }) {
 function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-1.5 w-full max-w-[85%] border border-rule bg-bone-lift">
+    <div className="w-full border border-rule bg-bone-lift lg:w-auto lg:min-w-64 lg:flex-1">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

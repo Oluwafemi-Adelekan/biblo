@@ -31,17 +31,23 @@ export default async function ChatPage() {
     { label: string; amount: number; date: string; category: string; items: number }
   > = {};
   for (const msg of messages) {
-    const id = msg.expenseId;
-    if (!id || expenses[id]) continue;
-    const e = all.find((x) => x.id === id);
-    if (e) {
-      expenses[id] = {
-        label: e.label,
-        amount: e.amountNGN,
-        date: e.date,
-        category: catName.get(e.categoryId) ?? e.categoryId,
-        items: e.items?.length ?? 0,
-      };
+    const ids = msg.meta?.expenseIds?.length
+      ? msg.meta.expenseIds
+      : msg.expenseId
+        ? [msg.expenseId]
+        : [];
+    for (const id of ids) {
+      if (expenses[id]) continue;
+      const e = all.find((x) => x.id === id);
+      if (e) {
+        expenses[id] = {
+          label: e.label,
+          amount: e.amountNGN,
+          date: e.date,
+          category: catName.get(e.categoryId) ?? e.categoryId,
+          items: e.items?.length ?? 0,
+        };
+      }
     }
   }
 

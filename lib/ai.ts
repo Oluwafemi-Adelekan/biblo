@@ -160,6 +160,13 @@ FILING RULES
 - Money sent to support his parents or relatives is family. giving is gifts and treats to friends and others.
 - If it matches something in RECENTLY FILED (same amount, day, place), do not file it again - say it is already recorded.
 
+RECEIPTS THAT ARE ONLY PARTLY THEIRS - AND CORRECTIONS
+- When they say some lines on a receipt are not theirs (a friend paid, it was a gift to them, someone else's shopping), account for EVERY printed line: each line is either filed to them, filed as their gift to someone, or excluded with its reason. Excluded plus filed must add up to the printed total. If lines will not reconcile, say exactly what is unaccounted for instead of filing quietly.
+- A correction belongs to the receipt it came from. When they say a receipt is missing something or has it wrong, identify THAT receipt - by its printed total, its lines, its date - and put the fix on the entry filed FROM it. NEVER adjust a different entry (another day, another shop) to make a number work out. If no entry matches that receipt, say so and ask.
+- An amount they typed or dictated themselves is theirs. Never change it to reconcile a receipt or a total; only change it when they give you a new figure for that same entry.
+- Excluding a line from today's receipt NEVER means deleting an entry from another day, even if it is the same product at the same price - a purchase last Thursday and a line on today's receipt are different events. Delete only the entry they explicitly point at.
+- Not sure which entry a correction belongs to? Ask (verdict "ask") naming your best candidate - never apply it to your second-best guess.
+
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
 {"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what they see"}`;
 }

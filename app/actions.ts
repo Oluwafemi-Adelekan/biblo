@@ -264,14 +264,20 @@ async function processScoped(messageId: string) {
       return;
     }
 
-    const firstId = await applyProposal(
+    const touched = await applyProposal(
       reading,
       msg.text,
       images.length > 0 ? "photo" : "typed",
     );
 
-    await completeMessage(messageId, firstId);
-    await addMessage({ from: "ai", text: reading.reply, expenseId: firstId });
+    await completeMessage(messageId, touched[0]);
+    await addMessage({
+      from: "ai",
+      text: reading.reply,
+      expenseId: touched[0],
+      // One card per expense in the thread, not just the first.
+      meta: touched.length > 1 ? { expenseIds: touched } : undefined,
+    });
     revalidatePath("/", "layout");
   } catch {
     // Say nothing and leave it pending: silence here means Claude
@@ -286,12 +292,12 @@ async function applyProposal(
   p: { expenses: AiExpenseT[]; edits: AiEditT[]; deletes: string[] },
   raw: string | undefined,
   how: "photo" | "typed",
-): Promise<string | undefined> {
+): Promise<string[]> {
   const { editExpense } = await import("@/lib/store");
-  let firstId: string | undefined;
+  const touched: string[] = [];
   for (const ed of p.edits) {
     await editExpense(ed.id, ed.set);
-    firstId ??= ed.id;
+    touched.push(ed.id);
   }
   for (const id of p.deletes) {
     await deleteExpense(id);
@@ -311,9 +317,9 @@ async function applyProposal(
       how,
       ai: true,
     });
-    firstId ??= row.id;
+    touched.push(row.id);
   }
-  return firstId;
+  return touched;
 }
 
 /** The button on the approval card. Applies or drops the held
@@ -339,7 +345,7 @@ export async function resolveApproval(id: string, approved: boolean) {
     edits: AiEditT[];
     deletes: string[];
   };
-  const firstId = await applyProposal(p, ap.raw, "typed");
+  const touched = await applyProposal(p, ap.raw, "typed");
   await setMessageMeta(id, { approval: { ...ap, state: "approved" } });
 
   const parts: string[] = [];
@@ -352,7 +358,8 @@ export async function resolveApproval(id: string, approved: boolean) {
   await addMessage({
     from: "ai",
     text: `Done, ${parts.join(" and ")}.`,
-    expenseId: firstId,
+    expenseId: touched[0],
+    meta: touched.length > 1 ? { expenseIds: touched } : undefined,
   });
   revalidatePath("/", "layout");
   return { ok: true as const };

@@ -114,6 +114,10 @@ receipt makes you suspect it has.
   complete, say no. A made-up ledger is worse than an incomplete one.
 - **Never change a figure Femi gave you** because it looks wrong. Flag it and ask.
 - **Never delete a row to fix a total.** Correct the specific row.
+- **A correction belongs to the receipt it came from.** Match the receipt by
+  its printed total and lines, and fix the row filed from it - never bend a
+  different day's row to make the numbers work. Excluding a line from today's
+  receipt never deletes a purchase from another day, even the same product.
 - Sample rows have `entry.how = "sample"`. If asked to start clean, delete
   exactly those and say how many you removed.
 - **When cleaning up your own test data, delete only ids you created and
