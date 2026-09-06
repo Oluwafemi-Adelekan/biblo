@@ -215,7 +215,7 @@ async function processScoped(messageId: string) {
     const userName =
       prefs.name?.trim().split(/\s+/)[0] || email?.split("@")[0] || "friend";
 
-    const reading = await readWithAI({
+    let reading = await readWithAI({
       text: msg.text,
       images,
       categories: cats,
@@ -223,6 +223,54 @@ async function processScoped(messageId: string) {
       validIds,
       userName,
     });
+
+    /* Femi's rule, made mechanical: some changes go through the
+       approval card even when the model is sure of itself. Changing
+       an amount the person typed with their own hands, or deleting
+       an entry from a past day, is exactly where a wrong guess
+       corrupts the books - so the button asks first, whether the
+       model thought to or not. */
+    if (reading.kind === "filed") {
+      const byId = new Map(allExpenses.map((e) => [e.id, e] as const));
+      const today = new Date().toLocaleDateString("en-CA", {
+        timeZone: "Africa/Lagos",
+      });
+      const risky: string[] = [];
+      for (const ed of reading.edits) {
+        const cur = byId.get(ed.id);
+        if (
+          cur &&
+          ed.set.amount !== undefined &&
+          cur.entry.how === "typed" &&
+          Math.abs(cur.amountNGN) !== Math.abs(ed.set.amount)
+        ) {
+          risky.push(
+            `change "${cur.label}" (${cur.date}) from ${Math.abs(cur.amountNGN).toLocaleString()} to ${Math.abs(ed.set.amount).toLocaleString()}`,
+          );
+        }
+      }
+      for (const id of reading.deletes) {
+        const cur = byId.get(id);
+        if (cur && cur.date !== today) {
+          risky.push(
+            `remove "${cur.label}" (${Math.abs(cur.amountNGN).toLocaleString()}, ${cur.date})`,
+          );
+        }
+      }
+      if (risky.length > 0) {
+        reading = {
+          kind: "ask",
+          question:
+            risky.length === 1
+              ? `Okay to ${risky[0]}?`
+              : `Okay to make ${risky.length} changes to earlier entries?`,
+          detail: risky.length > 1 ? risky.join("; ").slice(0, 280) : undefined,
+          expenses: reading.expenses,
+          edits: reading.edits,
+          deletes: reading.deletes,
+        };
+      }
+    }
 
     // Pure conversation: reply and close it out; nothing for Claude.
     if (reading.kind === "chat") {
