@@ -1,0 +1,11 @@
+-- Applied 2026-09-09 via the management API.
+--
+-- The security advisor was right: profiles was created in the 005
+-- multi-user rush WITHOUT row level security, unlike every other
+-- table. With the publishable key that ships in every browser, that
+-- meant anyone could read (and write) the table - user ids, emails,
+-- owner flags, settings. Verified exploitable before the fix and
+-- inert after: anon reads return nothing, anon writes touch no rows.
+-- The app itself is unaffected - the server talks through the
+-- service key, which bypasses RLS by design.
+alter table public.profiles enable row level security;
