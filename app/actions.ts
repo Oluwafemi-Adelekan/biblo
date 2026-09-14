@@ -66,16 +66,31 @@ export async function sendMessage(_prev: unknown, form: FormData) {
       attachments.length === 1
         ? attachments[0].name
         : `${attachments.length} files`;
-    const readable = attachments.some((a) => a.type.startsWith("image/"));
+    /* Anything the reader can open itself: pictures, PDFs, text
+       files. Only then does the message go to it; otherwise the
+       honest fallback below. */
+    const readable = attachments.some(
+      (a) =>
+        a.type.startsWith("image/") ||
+        a.type === "application/pdf" ||
+        a.type.startsWith("text/") ||
+        a.type === "application/json" ||
+        /\.(pdf|csv|txt|json|md)$/i.test(a.name),
+    );
 
     if (aiConfigured() && readable) {
       // No ack bubble: the thinking line opens with "Got N files,
       // opening them" - the same sentence, in the right place.
       after(() => processWithReader(msg.id));
     } else {
+      // Nobody is scheduled to read what the reader cannot, so say
+      // so plainly rather than promising a "shortly" that never comes.
+      await completeMessage(msg.id);
       await addMessage({
         from: "app",
-        text: `Got ${what}. I'll go through it shortly.`,
+        text: aiConfigured()
+          ? `I can't read ${what} - only photos, PDFs and CSV or text files. Tell me the figures and I'll file them.`
+          : `Got ${what}. I'll go through it shortly.`,
       });
     }
     revalidatePath("/", "layout");
@@ -159,16 +174,34 @@ async function processScoped(messageId: string) {
 
     const cats = await getCategories();
 
-    // Only images; PDFs and spreadsheets stay with Claude.
+    /* Images go to the model as pictures, PDFs as documents, and
+       plain text files (CSV, JSON, txt) as text - it reads all three
+       itself. A message used to park for a human the moment a PDF
+       was attached, which with no human on a schedule meant a spinner
+       that never ended. Only true spreadsheets (xlsx) and Word files
+       are beyond it, and those get an honest answer, not silence. */
     const images: { type: string; base64: string }[] = [];
+    const documents: { name: string; base64: string }[] = [];
+    const texts: { name: string; text: string }[] = [];
+    const unreadable: string[] = [];
     for (const a of msg.attachments) {
-      if (!a.type.startsWith("image/")) continue;
       const blob = await getFile(a.url.replace("/api/file/", ""));
       if (!blob) continue;
-      images.push({
-        type: a.type,
-        base64: Buffer.from(await blob.arrayBuffer()).toString("base64"),
-      });
+      const buf = Buffer.from(await blob.arrayBuffer());
+      const lower = a.name.toLowerCase();
+      if (a.type.startsWith("image/")) {
+        images.push({ type: a.type, base64: buf.toString("base64") });
+      } else if (a.type === "application/pdf" || lower.endsWith(".pdf")) {
+        documents.push({ name: a.name, base64: buf.toString("base64") });
+      } else if (
+        a.type.startsWith("text/") ||
+        a.type === "application/json" ||
+        /\.(csv|txt|json|md)$/.test(lower)
+      ) {
+        texts.push({ name: a.name, text: buf.toString("utf8").slice(0, 60_000) });
+      } else {
+        unreadable.push(a.name);
+      }
     }
 
     const { getMonth } = await import("@/lib/data");
@@ -218,6 +251,9 @@ async function processScoped(messageId: string) {
     let reading = await readWithAI({
       text: msg.text,
       images,
+      documents,
+      texts,
+      unreadable,
       categories: cats,
       context,
       validIds,
@@ -315,7 +351,7 @@ async function processScoped(messageId: string) {
     const touched = await applyProposal(
       reading,
       msg.text,
-      images.length > 0 ? "photo" : "typed",
+      images.length > 0 || documents.length > 0 ? "photo" : "typed",
     );
 
     await completeMessage(messageId, touched[0]);

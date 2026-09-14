@@ -133,7 +133,7 @@ WHAT YOU CAN DO
 4. Delete entries (verdict "file", deletes[]): only when they clearly ask you to remove a specific entry, and only ids from RECENTLY FILED. If you are not certain which one they mean, ask first.
 5. Check before changing (verdict "ask"): when the next step is a concrete change you are ready to make but should confirm first - a guessed category, a delete they implied but did not confirm plainly, a correction you are not certain of - put the exact change in expenses/edits/deletes and make reply the question itself: ONE short line, like "File it under dining?". Optional detail: one sentence of context. They answer with a button, so the question must be strictly yes-or-no. Never use ask for conversation, for anything they already told you plainly (that is verdict file), or twice for the same thing.
    STRONGLY PREFER ask over a typed clarifying question. If you can form ANY reasonable version of the change, propose that version as an ask and let the button settle it - do not interview them first. A typed question (verdict "chat") is only for when you cannot form a proposal at all. Long back-and-forths overwhelm; the button settles it.
-6. Everything else you do shortly (verdict "defer"): changing budgets, caps or categories, PDFs and spreadsheets he sent, or money you cannot read with confidence. Reply naturally - "I'll sort that out in a bit" - and never claim you lack the ability. Do the work NOW when it is within 1-4; "shortly" is only for what genuinely is not. Exports are real: when they ask for their data as a spreadsheet or CSV for some period, reply (verdict "chat") with a markdown link exactly like [Download your expenses](/api/export?from=2026-09-01&to=2026-09-30) using their dates, adding &category=<id> to narrow to one category - tapping it downloads the file. For anything visual - a report, a statement, graphs for a period - link [Your statement](/report?from=2026-09-01&to=2026-09-30) the same way with their dates; it is a print-ready page they can save as a PDF. CSV for raw data, the statement for eyes. Beyond that, never promise features the app does not have (reminders, PDF reports); say you will look into it.
+6. Photos, PDFs and CSV or text files are all yours to read - a PDF receipt or bank statement is filed exactly like a photo of one, every row of a CSV is read, none of it is deferred. A figure you genuinely cannot make out is not a defer either: say which one (verdict "chat") and ask for it. Defer (verdict "defer") is only for changing budgets, caps or categories - nothing else. Never claim you lack an ability you have. Exports are real: when they ask for their data as a spreadsheet or CSV for some period, reply (verdict "chat") with a markdown link exactly like [Download your expenses](/api/export?from=2026-09-01&to=2026-09-30) using their dates, adding &category=<id> to narrow to one category - tapping it downloads the file. For anything visual - a report, a statement, graphs for a period - link [Your statement](/report?from=2026-09-01&to=2026-09-30) the same way with their dates; it is a print-ready page they can save as a PDF. CSV for raw data, the statement for eyes. Beyond that, never promise features the app does not have (reminders, PDF reports); say you will look into it.
 
 THE MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
@@ -149,7 +149,7 @@ CATEGORIES (use the id, never the name)
 ${cats}
 
 FILING RULES
-- Never invent an expense, an amount, or a date. Unreadable figure: defer.
+- Never invent an expense, an amount, or a date. Unreadable figure: ask which it is (verdict "chat"), naming the line.
 - "5k" is 5,000. "1.5k" is 1,500. "2m" is 2,000,000. "$5,000 Naira" dictated means 5,000 naira.
 - Nigerian dates are day-first: 03/04 is 3 April. If ambiguous and it matters, defer.
 - No date mentioned means today; "yesterday" means the day before.
@@ -175,6 +175,12 @@ Your ENTIRE output must be exactly one JSON object - no markdown fences, no pros
 export async function readWithAI(input: {
   text?: string;
   images: { type: string; base64: string }[];
+  /** PDFs, sent to the model as documents. */
+  documents?: { name: string; base64: string }[];
+  /** CSV, JSON, txt: their contents, sent as text. */
+  texts?: { name: string; text: string }[];
+  /** Attachments of a kind the reader cannot open at all. */
+  unreadable?: string[];
   categories: Category[];
   context: MonthContext;
   /** Every expense id that exists; edits outside this set are refused. */
@@ -184,15 +190,40 @@ export async function readWithAI(input: {
 }): Promise<AiReading> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
+  const documents = input.documents ?? [];
+  const texts = input.texts ?? [];
+  const unreadable = input.unreadable ?? [];
+
   const content: object[] = [];
   if (input.text) content.push({ type: "input_text", text: input.text });
-  if (!input.text && input.images.length === 0) {
+  if (!input.text && input.images.length === 0 && documents.length === 0 && texts.length === 0) {
     return { kind: "defer", reason: "Nothing readable in the message." };
   }
   for (const img of input.images) {
     content.push({
       type: "input_image",
       image_url: `data:${img.type};base64,${img.base64}`,
+    });
+  }
+  for (const doc of documents) {
+    content.push({
+      type: "input_file",
+      filename: doc.name,
+      file_data: `data:application/pdf;base64,${doc.base64}`,
+    });
+  }
+  for (const t of texts) {
+    content.push({
+      type: "input_text",
+      text: `--- attached file: ${t.name} ---
+${t.text}
+--- end of ${t.name} ---`,
+    });
+  }
+  if (unreadable.length > 0) {
+    content.push({
+      type: "input_text",
+      text: `(Also attached, but of a kind you cannot open: ${unreadable.join(", ")}. Say so plainly and ask for the figures.)`,
     });
   }
 
