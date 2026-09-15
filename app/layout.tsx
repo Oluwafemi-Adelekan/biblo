@@ -16,6 +16,12 @@ const archivo = Archivo({
 export const metadata: Metadata = {
   title: "Biblo",
   description: "Type what you spent. That is the whole app.",
+  /* iOS reads these, not the manifest, for Add to Home Screen. */
+  appleWebApp: {
+    capable: true,
+    title: "Biblo",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {

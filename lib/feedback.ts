@@ -53,11 +53,39 @@ function sweep(
   osc.stop(t + duration + 0.02);
 }
 
-/** A short tick you can feel. Pixel-style; quietly ignored where the
- *  platform has no vibration motor (iOS Safari). */
+/* iOS has no vibration API for the web at all. What it does have,
+   since iOS 18, is a haptic when a native switch control toggles -
+   so a hidden switch, flipped from inside the tap, is the one way a
+   web page can tap back on an iPhone. Built once, on first use. */
+let iosSwitch: HTMLLabelElement | null = null;
+
+function iosTap() {
+  if (!iosSwitch) {
+    const label = document.createElement("label");
+    label.setAttribute("aria-hidden", "true");
+    label.tabIndex = -1;
+    label.style.cssText =
+      "position:fixed;left:-100px;top:-100px;width:1px;height:1px;overflow:hidden;pointer-events:none";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("switch", "");
+    input.tabIndex = -1;
+    label.appendChild(input);
+    document.body.appendChild(label);
+    iosSwitch = label;
+  }
+  iosSwitch.click();
+}
+
+/** A short tick you can feel. A real vibration where the platform
+ *  has one (Android); the switch trick on iOS; silence elsewhere. */
 export function feel() {
   try {
-    navigator.vibrate?.(8);
+    if (typeof navigator.vibrate === "function") {
+      navigator.vibrate(8);
+      return;
+    }
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) iosTap();
   } catch {
     // no motor, no problem
   }
