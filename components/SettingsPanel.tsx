@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CaretDown, SignOut, X } from "@phosphor-icons/react";
+import Link from "next/link";
+import { CaretDown, Compass, SignOut, X } from "@phosphor-icons/react";
 import { Sheet } from "@/components/ui/Sheet";
 import { setPin, signOutAction, updateSettings } from "@/app/actions";
 import { INCOME_CHANGED, INCOME_KEY } from "@/lib/useIncomeVisible";
@@ -187,6 +188,17 @@ export function SettingsPanel({
           <div className="h-[max(0.5rem,env(safe-area-inset-bottom))]" />
         </div>
       </Sheet>
+
+      {/* The first-run tour, on demand - for showing a friend, or
+          checking it without making a fresh account. */}
+      <Link
+        href="/?tour=1"
+        onClick={feel}
+        className="flex w-full items-center gap-2.5 border-t border-rule px-5 py-4 text-left text-body text-ink transition-[background-color] duration-press hover:bg-ink/5"
+      >
+        <Compass size={17} className="text-ink/60" />
+        See the walkthrough again
+      </Link>
 
       <form action={signOutAction} className="border-t border-rule">
         <button

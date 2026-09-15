@@ -20,10 +20,10 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; tour?: string }>;
 }) {
   await requirePin();
-  const { month } = await searchParams;
+  const { month, tour } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
   const needsALook = m.needsCheck.length;
   const settings = await getSettings();
@@ -183,7 +183,8 @@ export default async function Home({
         </p>
       ) : null}
 
-      <Tour run={!settings.toured} />
+      {/* First visit, or asked for again from Profile. */}
+      <Tour key={tour === "1" ? "again" : "first"} run={!settings.toured || tour === "1"} />
     </div>
   );
 }
