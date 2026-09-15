@@ -15,8 +15,14 @@ export async function GET() {
   const present = (k: string) => Boolean(process.env[k]?.trim());
 
   let database = false;
+  /* How long one trivial query takes from inside the function - the
+     honest measure of the server-to-database distance, with the
+     public internet taken out of the picture. */
+  let dbMs = -1;
   try {
+    const t0 = performance.now();
     const { error } = await db().from("heartbeat").select("id").limit(1);
+    dbMs = Math.round(performance.now() - t0);
     database = !error;
   } catch {
     database = false;
@@ -27,6 +33,8 @@ export async function GET() {
     // Which build is answering: the first 7 of the git commit.
     commit: (process.env.VERCEL_GIT_COMMIT_SHA ?? "local-dev").slice(0, 7),
     database,
+    dbMs,
+    region: process.env.VERCEL_REGION ?? null,
     reader: {
       configured: aiConfigured(),
       AZURE_OPENAI_ENDPOINT: present("AZURE_OPENAI_ENDPOINT"),
