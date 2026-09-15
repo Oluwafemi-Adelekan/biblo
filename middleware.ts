@@ -41,10 +41,13 @@ export async function middleware(req: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) return res;
+  /* Verified locally against the project's public signing key (a
+     one-time fetch, then cached), not by asking the auth server on
+     every request - that round trip was paid twice per page. A
+     token past its expiry still refreshes over the network here,
+     and the renewed cookies ride out on the response. */
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims) return res;
 
   if (process.env.BIBLO_SESSION_SECRET) {
     const got = req.cookies.get(COOKIE)?.value ?? "";

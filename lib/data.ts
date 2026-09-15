@@ -2,7 +2,7 @@ import { cache } from "react";
 import { Budget, Category, Config, Expense, Message } from "./schema";
 import { daysInMonth } from "./format";
 import { db, toBudget, toCategory, toExpense, toMessage } from "./supabase";
-import { ownerId, viewerId } from "./viewer";
+import { viewerId, viewerIsOwner } from "./viewer";
 import config from "../data/config.json";
 
 import { getSettings } from "./settings";
@@ -263,7 +263,7 @@ export const getMonthIndex = cache(async () => {
 
   /* The demo month is the owner's showpiece; a tenant's calendar
      should not advertise it. */
-  const isOwner = (await viewerId()) === (await ownerId());
+  const isOwner = await viewerIsOwner();
   const nowLabel = labelFor(todayISO(), monthStart);
   const known = new Set<string>([
     ...counts.keys(),

@@ -37,18 +37,39 @@ export const ownerId = cache(async (): Promise<string> => {
   return data?.id ?? ZERO_USER;
 });
 
+export type ProfileRow = {
+  id: string;
+  email: string | null;
+  owner: boolean;
+  settings: Record<string, unknown>;
+};
+
+/** The viewer's profile row, read once per request and shared by
+ *  everything that needs a piece of it - identity, settings, the
+ *  owner flag. It used to be read two or three separate times. */
+export const profileRow = cache(async (uid: string): Promise<ProfileRow | null> => {
+  const { data } = await db()
+    .from("profiles")
+    .select("id, email, owner, settings")
+    .eq("id", uid)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    email: data.email ?? null,
+    owner: Boolean(data.owner),
+    settings: (data.settings ?? {}) as Record<string, unknown>,
+  };
+});
+
 /** First sight of an authed user: make their profile, and if they are
  *  the owner, claim the pre-account rows; otherwise seed them a fresh
  *  set of categories and an empty budget for this month. */
 async function ensureProfile(uid: string, email: string, fullName?: string) {
-  const { data: existing } = await db()
-    .from("profiles")
-    .select("id, settings")
-    .eq("id", uid)
-    .maybeSingle();
+  const existing = await profileRow(uid);
   if (existing) {
     // A profile from before names were kept learns its name now.
-    const s = (existing.settings ?? {}) as Record<string, unknown>;
+    const s = existing.settings;
     // First names only: this is not a government application.
     const first = fullName?.trim().split(/\s+/)[0];
     if (first && !s.name) {
@@ -102,7 +123,10 @@ async function ensureProfile(uid: string, email: string, fullName?: string) {
   await db().from("budgets").insert({ user_id: uid, month, income: 0, total: 0, caps: {} });
 }
 
-/** The signed-in Supabase user for this request, if any. */
+/** The signed-in Supabase user for this request, if any - read from
+ *  the session token's claims, verified locally against the project's
+ *  public key. The middleware has already refreshed an expired token
+ *  by the time a page renders, so no auth-server call is needed here. */
 const authedUser = cache(async () => {
   const jar = await cookies();
   const client = createServerClient(
@@ -117,20 +141,32 @@ const authedUser = cache(async () => {
       },
     },
   );
-  const { data } = await client.auth.getUser();
-  return data.user ?? null;
+  const { data } = await client.auth.getClaims();
+  const c = data?.claims;
+  if (!c?.sub) return null;
+  const meta = (c.user_metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: c.sub,
+    email: (c.email as string | undefined) ?? null,
+    fullName: (meta.full_name ?? meta.name) as string | undefined,
+  };
 });
 
 /** The signed-in person's email, from their profile row - works for
  *  the passcode path too, since that resolves to the owner. */
 export const viewerEmail = cache(async (): Promise<string | null> => {
+  const row = await profileRow(await viewerId());
+  return row?.email ?? null;
+});
+
+/** Whether this request belongs to the owner - from the same profile
+ *  row everything else already read, so it costs nothing extra. */
+export const viewerIsOwner = cache(async (): Promise<boolean> => {
   const uid = await viewerId();
-  const { data } = await db()
-    .from("profiles")
-    .select("email")
-    .eq("id", uid)
-    .maybeSingle();
-  return data?.email ?? null;
+  const row = await profileRow(uid);
+  if (row) return row.owner;
+  // Pre-account rows: the passcode path resolves to the sentinel.
+  return uid === (await ownerId());
 });
 
 export const viewerId = cache(async (): Promise<string> => {
@@ -139,7 +175,7 @@ export const viewerId = cache(async (): Promise<string> => {
 
   const user = await authedUser();
   if (user?.email) {
-    await ensureProfile(user.id, user.email, (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined);
+    await ensureProfile(user.id, user.email, user.fullName);
     return user.id;
   }
 

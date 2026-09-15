@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "./supabase";
-import { viewerId } from "./viewer";
+import { profileRow, viewerId } from "./viewer";
 
 /* Per-user preferences, one jsonb on the profile. Small on purpose:
    every field here is something a person actually asked for. */
@@ -33,12 +33,8 @@ export const DEFAULTS: Settings = {
 
 export const getSettings = cache(async (): Promise<Settings> => {
   const uid = await viewerId();
-  const { data } = await db()
-    .from("profiles")
-    .select("settings")
-    .eq("id", uid)
-    .maybeSingle();
-  const s = (data?.settings ?? {}) as Partial<Settings>;
+  const row = await profileRow(uid);
+  const s = (row?.settings ?? {}) as Partial<Settings>;
   const monthStart = Number(s.monthStart);
   return {
     ...DEFAULTS,
