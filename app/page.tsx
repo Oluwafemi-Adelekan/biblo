@@ -77,8 +77,10 @@ export default async function Home({
           <span className="h-7 w-px bg-rule" />
           <span>
             <Label tone="dim">Income</Label>
+            {/* What actually arrived this month, not the plan - the
+                plan lives on the Budget screen. */}
             <p className="tnum mt-1 text-meta font-semibold">
-              <MaskIncome>{shortNaira(m.budget.income)}</MaskIncome>
+              <MaskIncome>{shortNaira(m.earned)}</MaskIncome>
             </p>
           </span>
         </div>

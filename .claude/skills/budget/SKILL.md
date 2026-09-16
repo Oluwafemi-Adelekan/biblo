@@ -102,6 +102,12 @@ has cost each time it was bought, with the spread between cheapest and
 dearest. Use it when he asks whether something has gone up, and when a
 receipt makes you suspect it has.
 
+## Who is family
+
+`family` is Femi's parents only: Mum (Iyabode Toyin Adelekan) and Dad. Every
+other person - siblings Dara and Dami, Sope, cousins, Damola, Hakeem, Eniola,
+friends - is `giving`, whatever the occasion. Money lent out (Timmy) is `loans`.
+
 ## Reading amounts
 
 - `5k` is 5,000. `1.5k` is 1,500. `2m` is 2,000,000.

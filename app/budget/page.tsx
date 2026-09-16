@@ -43,6 +43,7 @@ export default async function BudgetPage() {
         <BudgetForm
           month={m.month}
           budget={m.budget}
+          earned={m.earned}
           categories={m.categories}
           spentByCategory={spentByCategory}
         />

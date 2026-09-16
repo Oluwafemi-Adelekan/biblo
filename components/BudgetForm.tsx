@@ -15,11 +15,14 @@ import type { Budget, Category } from "@/lib/schema";
 export function BudgetForm({
   month,
   budget,
+  earned,
   categories,
   spentByCategory,
 }: {
   month: string;
   budget: Budget;
+  /** Income actually received this month, from the books. */
+  earned: number;
   categories: Category[];
   spentByCategory: Record<string, number>;
 }) {
@@ -64,7 +67,7 @@ export function BudgetForm({
       <div className="border-y border-rule bg-bone px-5 py-4">
         <div className="flex items-center justify-between">
           <label htmlFor="income">
-            <Label tone="dim">Income this month</Label>
+            <Label tone="dim">Expected income</Label>
           </label>
           {/* Same preference as the home screen: hide it in one place
               and it is hidden in the other. */}
@@ -97,6 +100,16 @@ export function BudgetForm({
             </>
           )}
         </div>
+        {/* The plan above is yours to set; this is what has landed. */}
+        <p className="tnum mt-2 text-meta text-ink/60">
+          Received so far{" "}
+          <span className="font-medium text-ink">
+            {showIncome ? `₦${earned.toLocaleString("en-NG")}` : "••••"}
+          </span>
+          {showIncome && earned > num(income) && num(income) > 0
+            ? ` · ${(earned - num(income)).toLocaleString("en-NG")} above plan`
+            : ""}
+        </p>
       </div>
 
       <div className="mt-5 px-5 pb-3">
