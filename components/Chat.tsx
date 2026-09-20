@@ -284,7 +284,54 @@ export function Chat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* One door for files however they arrive - picked, shot, pasted. */
+  /* Receipts shared straight from a banking app. The service worker
+     parked them when the share sheet was used; collect them into
+     the strip, then clear the parking so a reload does not restage.
+     The worker itself is registered here too - the only page that
+     needs it is this one, and registering is idempotent. */
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+    const shared = new URLSearchParams(window.location.search).get("shared");
+    if (!shared) return;
+    if (shared === "missed") {
+      // The worker was not yet in charge, so the files went nowhere.
+      // Once, honestly - and from now on it is.
+      setError("Biblo wasn't ready to catch that share. Try it once more - it will work now.");
+      window.history.replaceState(null, "", "/chat");
+      return;
+    }
+    (async () => {
+      try {
+        const cache = await caches.open("biblo-share-stash");
+        const metaRes = await cache.match("/__shared__/meta");
+        if (!metaRes) return;
+        const meta = (await metaRes.json()) as {
+          files: { name: string; type: string }[];
+          text: string;
+        };
+        const picked: File[] = [];
+        for (let i = 0; i < meta.files.length; i++) {
+          const r = await cache.match(`/__shared__/${i}`);
+          if (!r) continue;
+          const blob = await r.blob();
+          picked.push(new File([blob], meta.files[i].name || `shared-${i + 1}`, { type: meta.files[i].type || blob.type }));
+        }
+        stage(picked);
+        // A caption from the sharing app is rarely useful ("Receipt"),
+        // but a real message is worth keeping.
+        if (meta.text && meta.text.length > 12 && !/^https?:/.test(meta.text)) applyText(meta.text);
+        for (const k of await cache.keys()) await cache.delete(k);
+        window.history.replaceState(null, "", "/chat");
+        feel();
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* One door for files however they arrive - picked, shot, pasted,
+     or shared in from another app. */
   function stage(picked: File[]) {
     if (picked.length === 0) return;
     setFiles((p) => [

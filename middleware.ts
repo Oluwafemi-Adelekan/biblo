@@ -64,6 +64,6 @@ export const config = {
   /* Everything except Next's own assets. /api is included on purpose:
      the upload and file routes read and write real data. */
   matcher: [
-    "/((?!_next/static|_next/image|avatars/|brand/|icons/|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest).*)",
+    "/((?!_next/static|_next/image|avatars/|brand/|icons/|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js).*)",
   ],
 };
