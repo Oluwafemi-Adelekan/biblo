@@ -327,7 +327,10 @@ async function processScoped(messageId: string) {
     /* A question with the change attached. The composer becomes the
        card; a button applies or drops the proposal. */
     if (reading.kind === "ask") {
-      await completeMessage(messageId);
+      /* Card first, then close the question that raised it. The
+         other order left one instant where nothing was pending and
+         no card existed yet - a phone that polled at that instant
+         stopped polling and sat on the thinking line forever. */
       await addMessage({
         from: "ai",
         text: reading.question,
@@ -344,6 +347,7 @@ async function processScoped(messageId: string) {
           },
         },
       });
+      await completeMessage(messageId);
       revalidatePath("/", "layout");
       return;
     }
@@ -404,6 +408,28 @@ async function applyProposal(
     touched.push(row.id);
   }
   return touched;
+}
+
+/** The third way out of an approval card: say something instead of
+ *  pressing a button. The held change is dropped as "answered", and
+ *  the words go into the thread as a normal message, with the
+ *  original question quoted so the reader knows what they refer to. */
+export async function answerApproval(id: string, text: string) {
+  const { getMessages } = await import("@/lib/data");
+  const messages = await getMessages();
+  const msg = messages.find((m) => m.id === id);
+  const ap = msg?.meta?.approval;
+  if (!ap || ap.state !== "open") {
+    return { ok: false as const, error: "That question is no longer open." };
+  }
+  const said = text.trim();
+  if (!said) return { ok: false as const, error: "Nothing to send." };
+
+  await setMessageMeta(id, { approval: { ...ap, state: "denied" } });
+  const m = await addMessage({ from: "you", text: said, status: "pending" });
+  if (aiConfigured()) after(() => processWithReader(m.id));
+  revalidatePath("/", "layout");
+  return { ok: true as const };
 }
 
 /** The button on the approval card. Applies or drops the held

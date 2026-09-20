@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
 import { DesktopHeader } from "@/components/DesktopHeader";
+import { UpdateNudge } from "@/components/UpdateNudge";
 import { getSettings } from "@/lib/settings";
 import { getMonth } from "@/lib/data";
 import "./globals.css";
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
           <BottomNav pending={pending} avatar={avatar} />
         </div>
+        <UpdateNudge commit={(process.env.VERCEL_GIT_COMMIT_SHA ?? "local-dev").slice(0, 7)} />
       </body>
     </html>
   );

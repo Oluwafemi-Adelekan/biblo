@@ -31,7 +31,7 @@ import {
 import { dayLabel, naira } from "@/lib/format";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
-import { prepareUploads, resolveApproval, sendMessage } from "@/app/actions";
+import { answerApproval, prepareUploads, resolveApproval, sendMessage } from "@/app/actions";
 import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
@@ -1241,13 +1241,17 @@ function Reply({
 /* ---- the approval card -----------------------------------------
    From his beui reference: when the assistant holds a change out
    for a yes or no, the card IS the composer - no input field
-   underneath, no layer above one. Two buttons; both give the
-   keyboard back. */
+   underneath, no layer above one. Two buttons, and a third way:
+   say something else, because a question built on a misheard word
+   ("501" for "Fiber One") cannot be answered with yes or no. */
 function ApprovalCard({ m }: { m: Message }) {
   const ap = m.meta!.approval!;
   const [busy, start] = useTransition();
-  const [choice, setChoice] = useState<boolean | null>(null);
+  const [choice, setChoice] = useState<boolean | "say" | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [saying, setSaying] = useState(false);
+  const [said, setSaid] = useState("");
+  const sayRef = useRef<HTMLTextAreaElement>(null);
 
   const answer = (approved: boolean) => {
     if (busy) return;
@@ -1255,6 +1259,16 @@ function ApprovalCard({ m }: { m: Message }) {
     setChoice(approved);
     start(async () => {
       await resolveApproval(m.id, approved);
+    });
+  };
+
+  const say = () => {
+    if (busy || !said.trim()) return;
+    feel();
+    sentSound();
+    setChoice("say");
+    start(async () => {
+      await answerApproval(m.id, said);
     });
   };
 
@@ -1316,7 +1330,41 @@ function ApprovalCard({ m }: { m: Message }) {
         </div>
       </div>
 
-      <div className="mt-3.5 flex items-center gap-2 pl-[30px]">
+      {saying ? (
+        <div className="mt-3 pl-[30px]">
+          <div className="flex items-end gap-2 border border-rule bg-bone-lift px-3 py-2">
+            <textarea
+              ref={sayRef}
+              value={said}
+              onChange={(e) => setSaid(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  say();
+                }
+              }}
+              rows={1}
+              placeholder="Tell it what's actually right"
+              className="chat-field max-h-32 min-h-[1.5rem] flex-1 resize-none bg-transparent py-1 text-body text-ink outline-none placeholder:text-ink/35"
+            />
+            <button
+              type="button"
+              disabled={busy || !said.trim()}
+              onClick={say}
+              aria-label="Send"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-transform duration-press ease-out-strong active:scale-[0.92] disabled:opacity-40"
+            >
+              {busy && choice === "say" ? (
+                <CircleNotch size={15} weight="bold" className="animate-spin" />
+              ) : (
+                <ArrowUp size={16} weight="bold" />
+              )}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3.5 flex flex-wrap items-center gap-2 pl-[30px]">
         <button
           type="button"
           disabled={busy}
@@ -1343,6 +1391,20 @@ function ApprovalCard({ m }: { m: Message }) {
           )}
           Leave it
         </button>
+        {!saying ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              feel();
+              setSaying(true);
+              window.setTimeout(() => sayRef.current?.focus(), 50);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"
+          >
+            Say something else
+          </button>
+        ) : null}
       </div>
     </div>
   );

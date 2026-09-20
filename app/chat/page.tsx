@@ -68,7 +68,12 @@ export default async function ChatPage() {
       </Band>
 
       <Chat messages={messages} expenses={expenses} />
-      <RefreshWhilePending active={waiting > 0} />
+      {/* Poll while anything is pending OR a question is open - the
+          card can only be answered from a fresh view, and a stale
+          phone must keep asking until it has seen it. */}
+      <RefreshWhilePending
+        active={waiting > 0 || messages.some((x) => x.meta?.approval?.state === "open")}
+      />
     </div>
   );
 }
