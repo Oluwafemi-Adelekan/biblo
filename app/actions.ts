@@ -184,7 +184,30 @@ async function processScoped(messageId: string) {
     const documents: { name: string; base64: string }[] = [];
     const texts: { name: string; text: string }[] = [];
     const unreadable: string[] = [];
-    for (const a of msg.attachments) {
+
+    /* A follow-up ("just log the fuel and the offering") is about the
+       receipts sent a moment ago, not about nothing. Receipts from
+       the person's recent messages ride along with this one - back
+       to the last message that actually produced a filing, since
+       anything before that is settled. A short window, so an old
+       thread does not turn every message into a pile of pictures. */
+    const idx = messages.findIndex((x) => x.id === messageId);
+    const carried: typeof msg.attachments = [];
+    if (msg.attachments.length === 0) {
+      for (let i = idx - 1; i >= 0 && i >= idx - 8; i--) {
+        const prev = messages[i];
+        if (prev.from !== "you") continue;
+        if (prev.expenseId) break; // that turn was filed; stop there
+        carried.push(...prev.attachments);
+        if (carried.length >= 6) break;
+      }
+    }
+    const carriedNote =
+      carried.length > 0
+        ? `(The ${carried.length === 1 ? "receipt" : `${carried.length} receipts`} attached here came with their earlier messages above - this message refers to them.)`
+        : "";
+
+    for (const a of [...msg.attachments, ...carried]) {
       const blob = await getFile(a.url.replace("/api/file/", ""));
       if (!blob) continue;
       const buf = Buffer.from(await blob.arrayBuffer());
@@ -221,11 +244,13 @@ async function processScoped(messageId: string) {
       recentLines: [] as string[],
       /* The last few turns, so "move that one" means something. */
       threadLines: messages
-        .slice(-9, -1)
-        .map(
-          (x) =>
-            `${x.from === "you" ? "you" : "assistant"}: ${(x.text ?? "(files)").slice(0, 160)}`,
-        ),
+        .slice(-11, -1)
+        .map((x) => {
+          const who = x.from === "you" ? "you" : "assistant";
+          const files = x.attachments.length > 0 ? ` [sent ${x.attachments.length} file${x.attachments.length === 1 ? "" : "s"}]` : "";
+          const ask = x.meta?.approval ? ` [asked for a button: ${x.meta.approval.state}]` : "";
+          return `${who}${files}${ask}: ${(x.text ?? "").slice(0, 240)}`;
+        }),
     };
     const allExpenses = await (await import("@/lib/data")).getExpenses();
     context.recentLines = allExpenses
@@ -249,7 +274,9 @@ async function processScoped(messageId: string) {
       prefs.name?.trim().split(/\s+/)[0] || email?.split("@")[0] || "friend";
 
     let reading = await readWithAI({
-      text: msg.text,
+      text: carriedNote ? `${msg.text ?? ""}
+
+${carriedNote}` : msg.text,
       images,
       documents,
       texts,
