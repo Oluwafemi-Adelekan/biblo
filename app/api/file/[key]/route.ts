@@ -26,7 +26,10 @@ export async function GET(
   return new Response(blob, {
     headers: {
       "Content-Type": blob.type || "application/octet-stream",
-      "Cache-Control": "private, max-age=3600",
+      // A receipt never changes. Once a browser has it, it keeps it -
+      // every re-stream through here was function time and bandwidth
+      // spent on a picture the phone already had.
+      "Cache-Control": "private, max-age=31536000, immutable",
     },
   });
 }

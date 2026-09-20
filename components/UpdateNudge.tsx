@@ -24,9 +24,10 @@ export function UpdateNudge({ commit }: { commit: string }) {
         if (!stop && j.commit && j.commit !== commit) setFresh(j.commit);
       } catch {}
     };
-    // On return to the app, and every few minutes while it is open.
+    // Only on return to the app - a deploy while you are actively
+    // using it can wait for the next time you pick the phone up.
     document.addEventListener("visibilitychange", check);
-    const t = window.setInterval(check, 5 * 60_000);
+    const t = window.setInterval(check, 30 * 60_000);
     return () => {
       stop = true;
       document.removeEventListener("visibilitychange", check);

@@ -23,17 +23,28 @@ export function RefreshWhilePending({ active }: { active: boolean }) {
       router.refresh();
     };
 
+    /* The reader answers inside 5-30s, so the first minute polls
+       briskly. After that, whatever is open is waiting on a person
+       (an approval card, a receipt not yet sent), and a poll every
+       few minutes is plenty - each one is a full server render, and
+       a card left open all day used to cost thousands of them. Coming
+       back to the app always refreshes at once. */
     const fast = window.setInterval(() => {
-      if (Date.now() - startedAt.current > 120_000) return;
+      if (Date.now() - startedAt.current > 60_000) return;
       tick();
-    }, 4000);
+    }, 5000);
     const slow = window.setInterval(() => {
-      if (Date.now() - startedAt.current <= 120_000) return;
+      if (Date.now() - startedAt.current <= 60_000) return;
       tick();
-    }, 30_000);
+    }, 3 * 60_000);
+    const onShow = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       window.clearInterval(fast);
       window.clearInterval(slow);
+      document.removeEventListener("visibilitychange", onShow);
     };
   }, [active, router]);
 
