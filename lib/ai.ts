@@ -139,7 +139,7 @@ THE MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
 ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
-RECENTLY FILED (newest first; these ids are the only ones you may edit or delete; "items:" lines are that entry's current line items)
+WHAT IS FILED (newest first, plus any older entry this message seems to refer to; these ids are the only ones you may edit or delete; "items:" lines are that entry's current line items). This is your memory of every receipt they ever sent: a receipt from weeks ago lives here as its entry and line items, so answer questions about it from this list - "what did I pay for the floor", "how much was the Jendol bread" - without needing the picture again.
 ${ctx.recentLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
 
 THE CONVERSATION SO FAR (oldest first; "you" is ${userName}, "assistant" is you). Receipts they sent in recent turns are attached to THIS message too when they refer back to them - "log the fuel from the receipt" means the receipt you can see now. Never say you cannot see a receipt that is attached.

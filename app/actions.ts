@@ -191,20 +191,27 @@ async function processScoped(messageId: string) {
        to the last message that actually produced a filing, since
        anything before that is settled. A short window, so an old
        thread does not turn every message into a pile of pictures. */
+    /* The conversation travels with its pictures, the way a chat app
+       does it: every receipt from the last ten messages comes along
+       with this one, whether or not this one has its own, whether or
+       not those turns were filed. "Look at the receipt again" then
+       means what it says. Older receipts are not forgotten either -
+       they became entries with line items, listed below, which is a
+       sharper memory than the picture. Capped so a busy thread does
+       not turn into a slow, expensive upload on every message. */
     const idx = messages.findIndex((x) => x.id === messageId);
     const carried: typeof msg.attachments = [];
-    if (msg.attachments.length === 0) {
-      for (let i = idx - 1; i >= 0 && i >= idx - 8; i--) {
-        const prev = messages[i];
-        if (prev.from !== "you") continue;
-        if (prev.expenseId) break; // that turn was filed; stop there
-        carried.push(...prev.attachments);
-        if (carried.length >= 6) break;
+    for (let i = idx - 1; i >= 0 && i >= idx - 10; i--) {
+      const prev = messages[i];
+      if (prev.from !== "you") continue;
+      for (const a of prev.attachments) {
+        if (carried.length >= 8) break;
+        if (!msg.attachments.some((b) => b.url === a.url)) carried.push(a);
       }
     }
     const carriedNote =
       carried.length > 0
-        ? `(The ${carried.length === 1 ? "receipt" : `${carried.length} receipts`} attached here came with their earlier messages above - this message refers to them.)`
+        ? `(Also attached: the ${carried.length === 1 ? "receipt" : `${carried.length} receipts`} from their recent messages above, oldest last, so you can refer back to them.)`
         : "";
 
     for (const a of [...msg.attachments, ...carried]) {
@@ -244,17 +251,28 @@ async function processScoped(messageId: string) {
       recentLines: [] as string[],
       /* The last few turns, so "move that one" means something. */
       threadLines: messages
-        .slice(-11, -1)
+        .slice(-21, -1)
         .map((x) => {
           const who = x.from === "you" ? "you" : "assistant";
           const files = x.attachments.length > 0 ? ` [sent ${x.attachments.length} file${x.attachments.length === 1 ? "" : "s"}]` : "";
           const ask = x.meta?.approval ? ` [asked for a button: ${x.meta.approval.state}]` : "";
-          return `${who}${files}${ask}: ${(x.text ?? "").slice(0, 240)}`;
+          return `${who}${files}${ask}: ${(x.text ?? "").slice(0, 400)}`;
         }),
     };
     const allExpenses = await (await import("@/lib/data")).getExpenses();
-    context.recentLines = allExpenses
-      .slice(0, 25)
+    /* Sixty most recent entries always; and when the message names a
+       thing or a figure that matches an older entry - "that Jendol
+       receipt", "the 136k floor" - that entry rides along too, so a
+       question about a receipt from weeks ago has its answer in view. */
+    const said = (msg.text ?? "").toLowerCase();
+    const words = said.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    const figures = (said.match(/\d[\d,]*/g) ?? []).map((n) => Number(n.replace(/,/g, ""))).filter((n) => n >= 100);
+    const recent = allExpenses.slice(0, 60);
+    const recalled = allExpenses.slice(60).filter((e) => {
+      const hay = `${e.label} ${e.note ?? ""} ${(e.items ?? []).map((i) => i.name).join(" ")}`.toLowerCase();
+      return words.some((w) => hay.includes(w)) || figures.some((n) => Math.abs(e.amountNGN) === n);
+    }).slice(0, 15);
+    context.recentLines = [...recent, ...recalled]
       .map((e) => {
         const head = `${e.id} ${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`;
         if (!e.items?.length) return head;
