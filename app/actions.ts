@@ -180,8 +180,8 @@ async function processScoped(messageId: string) {
        was attached, which with no human on a schedule meant a spinner
        that never ended. Only true spreadsheets (xlsx) and Word files
        are beyond it, and those get an honest answer, not silence. */
-    const images: { type: string; base64: string }[] = [];
-    const documents: { name: string; base64: string }[] = [];
+    const images: { type: string; base64: string; label?: string }[] = [];
+    const documents: { name: string; base64: string; label?: string }[] = [];
     const texts: { name: string; text: string }[] = [];
     const unreadable: string[] = [];
 
@@ -200,29 +200,46 @@ async function processScoped(messageId: string) {
        sharper memory than the picture. Capped so a busy thread does
        not turn into a slow, expensive upload on every message. */
     const idx = messages.findIndex((x) => x.id === messageId);
-    const carried: typeof msg.attachments = [];
+    const carried: { a: (typeof msg.attachments)[number]; when: string }[] = [];
     for (let i = idx - 1; i >= 0 && i >= idx - 10; i--) {
       const prev = messages[i];
       if (prev.from !== "you") continue;
+      const when = new Date(prev.at).toLocaleString("en-GB", {
+        timeZone: "Africa/Lagos",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       for (const a of prev.attachments) {
         if (carried.length >= 8) break;
-        if (!msg.attachments.some((b) => b.url === a.url)) carried.push(a);
+        if (!msg.attachments.some((b) => b.url === a.url)) carried.push({ a, when });
       }
     }
+    /* Each file is announced by name before it is shown, so "this
+       receipt" is never a guess. Without these labels the model saw
+       an unordered pile and answered about the wrong one. */
+    const tagged = [
+      ...msg.attachments.map((a) => ({ a, label: `ATTACHED TO THIS MESSAGE - "${a.name}"` })),
+      ...carried.map(({ a, when }) => ({
+        a,
+        label: `FROM AN EARLIER MESSAGE (${when}), context only, NOT the file they mean by "this" - "${a.name}"`,
+      })),
+    ];
     const carriedNote =
       carried.length > 0
-        ? `(Also attached: the ${carried.length === 1 ? "receipt" : `${carried.length} receipts`} from their recent messages above, oldest last, so you can refer back to them.)`
+        ? `(Files below are labelled. Only the ones marked ATTACHED TO THIS MESSAGE are what "this receipt" means; the rest are older ones kept in view so you can refer back.)`
         : "";
 
-    for (const a of [...msg.attachments, ...carried]) {
+    for (const { a, label } of tagged) {
       const blob = await getFile(a.url.replace("/api/file/", ""));
       if (!blob) continue;
       const buf = Buffer.from(await blob.arrayBuffer());
       const lower = a.name.toLowerCase();
       if (a.type.startsWith("image/")) {
-        images.push({ type: a.type, base64: buf.toString("base64") });
+        images.push({ type: a.type, base64: buf.toString("base64"), label });
       } else if (a.type === "application/pdf" || lower.endsWith(".pdf")) {
-        documents.push({ name: a.name, base64: buf.toString("base64") });
+        documents.push({ name: a.name, base64: buf.toString("base64"), label });
       } else if (
         a.type.startsWith("text/") ||
         a.type === "application/json" ||

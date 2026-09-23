@@ -36,6 +36,7 @@ import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
 import { joinTranscript, mergeTranscript, readResults } from "@/lib/transcript";
+import { clearStaged, keepStaged, takeStaged } from "@/lib/staged";
 
 /* ============================================================
    The whole input surface of Biblo.
@@ -281,8 +282,34 @@ export function Chat({
       const saved = localStorage.getItem("biblo-draft");
       if (saved) applyText(saved);
     } catch {}
+    /* The photos come back too. A receipt may already be in the bin;
+       losing its picture because a tab was tapped is not acceptable. */
+    (async () => {
+      const kept = await takeStaged();
+      if (kept.length > 0) {
+        setFiles((p) =>
+          p.length > 0
+            ? p
+            : kept.map((file) => ({
+                file,
+                preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+              })),
+        );
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Every change to the strip is parked immediately - staged, removed
+     or cleared - so what comes back is what was there. */
+  const firstFiles = useRef(true);
+  useEffect(() => {
+    if (firstFiles.current) {
+      firstFiles.current = false;
+      return;
+    }
+    void keepStaged(files.map((f) => f.file));
+  }, [files]);
 
   /* Receipts shared straight from a banking app. The service worker
      parked them when the share sheet was used; collect them into
@@ -384,9 +411,11 @@ export function Chat({
     setFiles([]);
     if (fieldRef.current) fieldRef.current.style.height = "auto";
 
+    void clearStaged();
     const restore = () => {
       applyText(sentText);
       setFiles(sentFiles);
+      void keepStaged(sentFiles.map((f) => f.file));
     };
 
     startSending(async () => {
