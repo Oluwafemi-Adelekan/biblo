@@ -464,6 +464,7 @@ async function applyProposal(
       guessed: false,
       items: e.items,
       method: e.method,
+      refund: e.refund,
       how,
       ai: true,
     });

@@ -108,6 +108,13 @@ receipt makes you suspect it has.
 other person - siblings Dara and Dami, Sope, cousins, Damola, Hakeem, Eniola,
 friends - is `giving`, whatever the occasion. Money lent out (Timmy) is `loans`.
 
+## Money coming back is not income
+
+A loan repaid, a refund, a friend settling their share: file it in the SAME
+spend category the money left from, with `"refund": true` on `db.mjs add`, so
+it nets off that category. `income` is only what was genuinely earned. A
+repayment filed as income inflates both the month's income and its spending.
+
 ## Reading amounts
 
 - `5k` is 5,000. `1.5k` is 1,500. `2m` is 2,000,000.

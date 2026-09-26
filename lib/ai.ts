@@ -41,6 +41,8 @@ const AiExpense = z.object({
   categoryId: z.string(),
   method: z.enum(["card", "transfer", "cash", "ussd", "direct-debit", "unknown"]).optional(),
   note: z.string().max(300).optional(),
+  /** Money coming back into a spend category rather than earned. */
+  refund: z.boolean().optional(),
   items: z.array(AiItem).max(50).default([]),
 });
 
@@ -157,6 +159,7 @@ FILING RULES
 - Receipts that list items MUST be itemised: names as printed (keep sizes - "340g" is part of the price), qty, unit, line total.
 - Labels are short names, not sentences. A label names what the money was FOR - the service, the thing, who it supports - NEVER the bank counterparty or the transfer remark. A ride paid into the driver's account is "Eniola's ride", not the driver's name; a transfer whose remark says "Father" is "Money to Dad". Counterparty names, remarks and reference numbers go in note.
 - note is at most one short line of genuinely extra fact. Never quote, restate or summarise what he typed or dictated - he can already see his own message.
+- MONEY COMING BACK IS NOT INCOME. A loan repaid, a refund for something returned, a friend settling their share of something you paid for - none of that is earnings. File it in the SAME spend category the money originally left from, with "refund": true, and a positive amount. A loan Timmy repays goes to the loans category with refund true, never to income. Income is only money genuinely earned: salary, a client paying, a gift received, interest. Getting this wrong makes someone look like they earned hundreds of thousands they did not.
 - family is for the PARENTS ONLY - money to Mum or Dad (Iyabode Toyin Adelekan is Mum; a remark saying "Father" is Dad). Siblings, cousins, friends and everyone else - Dara, Dami, Sope, Damola, Hakeem, Eniola, Kiki - are giving, whatever the occasion. When you see a loans category, money lent out that will come back (a loan to a friend) goes there, never to family or giving.
 - Say only what you did. If you are filing something in this turn, never say you left it unfiled; if you are not filing it, never say it is filed. Your reply and your expenses[] must agree - a reply that contradicts the action is worse than no reply at all.
 - A receipt whose printed lines do not add to its printed total is still filed, at the printed total, with the lines as printed. Never hold a receipt back over a discrepancy, and never adjust a line to close one: say which lines you could not make out and let them correct you.
@@ -176,7 +179,7 @@ RECEIPTS THAT ARE ONLY PARTLY THEIRS - AND CORRECTIONS
 - Changing an amount they typed themselves, or removing an entry from a past day, ALWAYS goes out as ask - the button, never silent filing. The app enforces this; propose the ask yourself so the question is in your own words.
 
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
-{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what they see"}`;
+{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","refund":"true only when money is coming BACK into that category","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what they see"}`;
 }
 
 export async function readWithAI(input: {

@@ -157,7 +157,11 @@ export const getMonth = cache(async (month?: string) => {
   const spendRows = rows.filter((e) => byId.get(e.categoryId)?.kind !== "income");
   const incomeRows = rows.filter((e) => byId.get(e.categoryId)?.kind === "income");
 
-  const spent = spendRows.reduce((s, e) => s + Math.abs(e.amountNGN), 0);
+  /* Signed, not absolute: a repayment or refund sits in its spend
+     category as a positive row and must SUBTRACT from what that
+     category cost. Summing absolutes counted money coming back as
+     money going out, which is how a settled loan read as spending. */
+  const spent = spendRows.reduce((s, e) => s - e.amountNGN, 0);
   const earned = incomeRows.reduce((s, e) => s + Math.abs(e.amountNGN), 0);
   const left = budget.total - spent;
 
@@ -165,7 +169,7 @@ export const getMonth = cache(async (month?: string) => {
     .filter((c) => c.kind === "spend")
     .map((c) => {
       const items = spendRows.filter((e) => e.categoryId === c.id);
-      const total = items.reduce((s, e) => s + Math.abs(e.amountNGN), 0);
+      const total = items.reduce((s, e) => s - e.amountNGN, 0);
       const cap = budget.caps[c.id] ?? 0;
       return {
         category: c,
@@ -188,7 +192,7 @@ export const getMonth = cache(async (month?: string) => {
     const date = addDays(period.from, i);
     const total = spendRows
       .filter((e) => e.date === date)
-      .reduce((s, e) => s + Math.abs(e.amountNGN), 0);
+      .reduce((s, e) => s - e.amountNGN, 0);
     running += total;
     return { date, day: i + 1, total, running };
   });

@@ -23,7 +23,7 @@ export function CategoryBars({
   rows: Month["categoryRows"];
   limit?: number;
 }) {
-  const shown = (limit ? rows.slice(0, limit) : rows).filter((r) => r.total > 0);
+  const shown = (limit ? rows.slice(0, limit) : rows).filter((r) => r.total !== 0);
   if (shown.length === 0) return null;
 
   // Bars are scaled against the largest of (biggest spend, its cap) so
@@ -33,7 +33,8 @@ export function CategoryBars({
   return (
     <ul className="divide-y divide-rule">
       {shown.map((r) => {
-        const pct = (r.total / max) * 100;
+        // Net-negative (more came back than went out) draws nothing.
+        const pct = Math.max((r.total / max) * 100, 0);
         const capPct = r.cap > 0 ? (r.cap / max) * 100 : null;
         return (
           <li key={r.category.id}>

@@ -57,6 +57,11 @@ export async function addExpense(input: {
   how?: Expense["entry"]["how"];
   method?: Expense["method"];
   ai?: boolean;
+  /** Money coming BACK into a spend category: a loan repaid, a
+   *  refund, a friend settling their share. It is not income - it
+   *  cancels the outgoing it belongs to, so the category shows the
+   *  net and the month's income is not flattered by it. */
+  refund?: boolean;
 }): Promise<Expense> {
   const uid = await viewerId();
 
@@ -69,7 +74,9 @@ export async function addExpense(input: {
     .eq("user_id", uid)
     .eq("id", input.categoryId)
     .maybeSingle();
-  const dir = cat?.kind === "income" ? 1 : -1;
+  // Income is positive; spending negative; money coming back into a
+  // spend category positive, so it nets against that category.
+  const dir = cat?.kind === "income" || input.refund ? 1 : -1;
 
   const row: Expense = {
     id: await nextId("expenses", "exp"),
@@ -143,7 +150,12 @@ export async function editExpense(
       .eq("user_id", uid)
       .eq("id", owner)
       .maybeSingle();
-    const dir = cat?.kind === "income" ? 1 : -1;
+    /* An edit keeps the row's own direction: a refund stays a
+       refund, spending stays spending. Only the category's kind can
+       flip it, never the mere act of correcting a figure. */
+    const wasRefund =
+      Number(current.amount_ngn) > 0 && cat?.kind !== "income";
+    const dir = cat?.kind === "income" || wasRefund ? 1 : -1;
     const abs = Math.abs(
       set.amount !== undefined ? set.amount : Number(current.amount_ngn),
     );

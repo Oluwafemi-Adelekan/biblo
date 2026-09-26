@@ -129,7 +129,10 @@ switch (cmd) {
     const { data: cat } = await db
       .from("categories").select("kind").eq("user_id", UID).eq("id", input.categoryId).maybeSingle();
     if (!cat) die(`no such category: ${input.categoryId}`);
-    const sign = cat.kind === "income" ? 1 : -1;
+    /* Money coming BACK into a spend category (a loan repaid, a
+       refund) is positive there: it nets off the outgoing instead of
+       pretending to be income. */
+    const sign = cat.kind === "income" || input.refund ? 1 : -1;
 
     const row = {
       id: await nextId("expenses", "exp"),
@@ -333,11 +336,13 @@ switch (cmd) {
     const kind = Object.fromEntries((cats ?? []).map((c) => [c.id, c.kind]));
     const name = Object.fromEntries((cats ?? []).map((c) => [c.id, c.name]));
     const spend = (rows ?? []).filter((r) => kind[r.category_id] !== "income");
-    const total = spend.reduce((a, r) => a + Math.abs(Number(r.amount_ngn)), 0);
+    /* Signed, like the app: a refund or repayment sits in its spend
+       category as a positive row and subtracts from that category. */
+    const total = spend.reduce((a, r) => a - Number(r.amount_ngn), 0);
 
     const by = {};
     for (const r of spend)
-      by[r.category_id] = (by[r.category_id] ?? 0) + Math.abs(Number(r.amount_ngn));
+      by[r.category_id] = (by[r.category_id] ?? 0) - Number(r.amount_ngn);
 
     console.log(`${month}: ${spend.length} expenses, ${total.toLocaleString()} spent`);
     if (b) {
