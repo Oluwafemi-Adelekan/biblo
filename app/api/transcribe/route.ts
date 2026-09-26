@@ -16,10 +16,24 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/* Vocabulary changes when a new shop appears, which is rarely; and
+   reading every expense on every recording put a second of database
+   between speaking and seeing the words. Worked out once, then kept. */
+const HINTS = new Map<string, { at: number; text: string }>();
+const HINT_TTL = 10 * 60_000;
+
+async function hintsFor(uid: string) {
+  const held = HINTS.get(uid);
+  if (held && Date.now() - held.at < HINT_TTL) return held.text;
+  const text = await buildHints();
+  HINTS.set(uid, { at: Date.now(), text });
+  return text;
+}
+
 /** Words a stranger would not guess: the person's own categories,
  *  the places they shop, the people they pay. Handing these over as
  *  a prompt is what turns "Fiber One" from a guess into a word. */
-async function hints() {
+async function buildHints() {
   const base = [
     "Nigerian naira amounts",
     "FiberOne",
@@ -64,28 +78,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "That recording is too long." }, { status: 413 });
   }
 
+  const { viewerId } = await import("@/lib/viewer");
+  let uid = "anon";
+  try {
+    uid = await viewerId();
+  } catch {}
+
   const out = new FormData();
   out.set("file", clip, clip.name || "clip.webm");
   out.set("model", model);
   out.set("language", "en");
-  out.set("prompt", await hints());
+  out.set("prompt", await hintsFor(uid));
   // No creative licence: these models will otherwise narrate their way
   // through a passage of noise rather than return nothing.
   out.set("temperature", "0");
+  /* Streamed, so the words appear as they are recognised instead of
+     all at once at the end. The first of them lands about a second
+     before the finished sentence would have. */
+  out.set("stream", "true");
 
   try {
     const r = await fetch(
       `${endpoint}/openai/deployments/${model}/audio/transcriptions?api-version=2025-03-01-preview`,
       { method: "POST", headers: { "api-key": key }, body: out },
     );
-    if (!r.ok) {
+    if (!r.ok || !r.body) {
       return NextResponse.json(
         { error: "That didn't come through. Try again." },
         { status: 502 },
       );
     }
-    const j = (await r.json()) as { text?: string };
-    return NextResponse.json({ text: (j.text ?? "").trim() });
+    return new Response(r.body, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store",
+        // Nothing may sit on this and buffer it; the point is arrival.
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch {
     return NextResponse.json({ error: "That didn't come through. Try again." }, { status: 502 });
   }

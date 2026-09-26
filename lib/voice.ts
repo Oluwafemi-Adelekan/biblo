@@ -2,6 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 
+/** How many bars of history the meter keeps: one per bar drawn. */
+export const WAVE_BARS = 26;
+
 /* Recording, not "recognition".
 
    The browser's SpeechRecognition is what made dictation flaky: it
@@ -28,6 +31,11 @@ function pickType() {
 }
 
 export function useVoice(onText: (text: string) => void, onError: (why: string) => void) {
+  /* The wave is drawn from this: a rolling history of how loud the
+     room actually is, newest last. It lives in a ref and is read by
+     an animation frame, never through React - sixty renders a second
+     to move some bars would be absurd. */
+  const levels = useRef<number[]>(new Array(WAVE_BARS).fill(0));
   const [state, setState] = useState<VoiceState>("idle");
   const rec = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -39,6 +47,10 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
    *  in it must never reach one: an invented expense is far worse
    *  than a dictation that did not take. */
   const peak = useRef(0);
+  /** How many readings the meter actually managed. Zero means we
+   *  never measured anything, which is not the same as silence and
+   *  must never be treated as it. */
+  const reads = useRef(0);
   const audio = useRef<AudioContext | null>(null);
   const meter = useRef<number | null>(null);
 
@@ -66,21 +78,38 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
     try {
       const ctx = new AudioContext();
       audio.current = ctx;
+      // A context born outside a trusted tap starts suspended, and a
+      // suspended analyser reports a silent room however loud it is.
+      if (ctx.state === "suspended") void ctx.resume().catch(() => {});
       const node = ctx.createAnalyser();
       node.fftSize = 512;
       ctx.createMediaStreamSource(s).connect(node);
       const buf = new Uint8Array(node.fftSize);
-      const tick = () => {
+      let since = 0;
+      let bucket = 0;
+      const tick = (now: number) => {
         node.getByteTimeDomainData(buf);
         let max = 0;
         for (const v of buf) max = Math.max(max, Math.abs(v - 128) / 128);
+        if (ctx.state === "running") reads.current++;
         peak.current = Math.max(peak.current, max);
+        bucket = Math.max(bucket, max);
+        /* One bar every 45ms: fast enough to follow a syllable, slow
+           enough that the bars read as a shape rather than a blur. */
+        if (now - since > 45) {
+          since = now;
+          const next = levels.current.slice(1);
+          // A touch of floor so a quiet moment still shows a line.
+          next.push(Math.min(1, Math.max(0.06, bucket * 1.7)));
+          levels.current = next;
+          bucket = 0;
+        }
         meter.current = requestAnimationFrame(tick);
       };
-      tick();
+      meter.current = requestAnimationFrame(tick);
     } catch {
-      // No meter: fall back to trusting the recording.
-      peak.current = 1;
+      // No meter at all: trust the recording rather than block it.
+      reads.current = 0;
     }
   };
 
@@ -96,18 +125,25 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
       });
       stream.current = s;
       const type = pickType();
-      const r = type ? new MediaRecorder(s, { mimeType: type }) : new MediaRecorder(s);
+      /* Speech needs far less than music. A lower rate means a much
+         smaller upload, which on mobile data is most of the wait. */
+      const r = type
+        ? new MediaRecorder(s, { mimeType: type, audioBitsPerSecond: 32000 })
+        : new MediaRecorder(s);
       chunks.current = [];
       discard.current = false;
       peak.current = 0;
+      reads.current = 0;
       listen(s);
 
       r.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.current.push(e.data);
       };
       r.onstop = async () => {
+        levels.current = new Array(WAVE_BARS).fill(0);
         const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
         const heard = peak.current;
+        const measured = reads.current > 20;
         cleanup();
         if (discard.current || blob.size < 1200) {
           setState("idle");
@@ -115,7 +151,7 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
         }
         /* Quieter than this is a room, not a voice. Sending it would
            get back a confident paragraph of something never said. */
-        if (heard < 0.02) {
+        if (measured && heard < 0.02) {
           setState("idle");
           onError("I didn't hear anything that time.");
           return;
@@ -126,9 +162,43 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
           const fd = new FormData();
           fd.set("audio", new File([blob], `clip.${ext}`, { type: blob.type }));
           const res = await fetch("/api/transcribe", { method: "POST", body: fd });
-          const j = (await res.json()) as { text?: string; error?: string };
-          if (!res.ok || !j.text) onError(j.error ?? "Nothing came through.");
-          else onText(j.text);
+
+          /* The words arrive in pieces. Each one is handed over as it
+             lands, so the sentence writes itself into the box instead
+             of appearing whole after a wait. */
+          if (res.ok && res.body && (res.headers.get("content-type") ?? "").includes("event-stream")) {
+            const reader = res.body.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            let said = "";
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              const lines = buf.split(String.fromCharCode(10));
+              buf = lines.pop() ?? "";
+              for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+                const body = line.slice(5).trim();
+                if (!body || body === "[DONE]") continue;
+                try {
+                  const ev = JSON.parse(body) as { type?: string; delta?: string; text?: string };
+                  if (ev.type === "transcript.text.delta" && ev.delta) {
+                    said += ev.delta;
+                    onText(said.trim());
+                  } else if (ev.type === "transcript.text.done" && ev.text) {
+                    said = ev.text;
+                    onText(said.trim());
+                  }
+                } catch {}
+              }
+            }
+            if (!said.trim()) onError("Nothing came through.");
+          } else {
+            const j = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+            if (!res.ok || !j.text) onError(j.error ?? "Nothing came through.");
+            else onText(j.text);
+          }
         } catch {
           onError("That didn't come through. Try again.");
         } finally {
@@ -166,5 +236,5 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
     }
   }, []);
 
-  return { state, supported, start, stop, cancel };
+  return { state, supported, start, stop, cancel, levels };
 }

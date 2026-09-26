@@ -36,7 +36,7 @@ import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
 import { clearStaged, keepStaged, takeStaged } from "@/lib/staged";
-import { useVoice } from "@/lib/voice";
+import { useVoice, WAVE_BARS } from "@/lib/voice";
 
 /* ============================================================
    The whole input surface of Biblo.
@@ -136,6 +136,7 @@ export function Chat({
     start,
     stop,
     cancel: cancelVoice,
+    levels,
   } = useVoice(
     (heard) => {
       const base = beforeDictation.current;
@@ -741,6 +742,7 @@ export function Chat({
               when recording stops. */}
           {listening ? (
             <Wave
+              levels={levels}
               className={cn(
                 "mx-1 mb-2 min-w-0 flex-1 justify-between self-center px-1",
                 rowWrapped && "order-2",
@@ -1523,17 +1525,58 @@ function ExpenseCard({ id, e }: { id: string; e: ExpenseLite }) {
    microphone meter: opening a second mic stream knocks Android's
    recogniser over, which silently ate Femi's words for an evening.
    A quiet idle sway says "listening" and costs nothing. */
-function Wave({ bars = 26, className }: { bars?: number; className?: string }) {
+function Wave({
+  levels,
+  className,
+}: {
+  /** A rolling history of how loud it actually is, newest last. */
+  levels?: React.RefObject<number[]>;
+  className?: string;
+}) {
+  const host = useRef<HTMLSpanElement>(null);
+
+  /* Driven straight onto the DOM from an animation frame. Feeding
+     sixty updates a second through React to move some bars would
+     cost more than the rest of the screen put together. */
+  useEffect(() => {
+    if (!levels) return;
+    const el = host.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const bars = Array.from(el.children) as HTMLElement[];
+    const shown = new Array(bars.length).fill(0);
+    const paint = () => {
+      const now = levels.current ?? [];
+      for (let i = 0; i < bars.length; i++) {
+        const want = now[i] ?? 0;
+        // Ease towards the reading, so the bars move like a voice
+        // rather than flickering frame to frame.
+        shown[i] += (want - shown[i]) * 0.35;
+        bars[i].style.transform = `scaleY(${Math.max(0.12, shown[i]).toFixed(3)})`;
+      }
+      raf = requestAnimationFrame(paint);
+    };
+    raf = requestAnimationFrame(paint);
+    return () => cancelAnimationFrame(raf);
+  }, [levels]);
+
   return (
     <span
+      ref={host}
       className={cn("flex h-6 items-center gap-[3px]", className)}
       aria-hidden="true"
     >
-      {Array.from({ length: bars }, (_, i) => (
+      {Array.from({ length: WAVE_BARS }, (_, i) => (
         <span
           key={i}
-          className="h-4 w-[3px] origin-center rounded-full bg-ink/30 motion-safe:animate-[wave-idle_1.3s_ease-in-out_infinite]"
-          style={{ animationDelay: `${(i % 7) * 0.13}s` }}
+          className={cn(
+            "h-4 w-[3px] origin-center rounded-full bg-ink/30",
+            // No meter to follow (reduced motion, or no mic): the old
+            // gentle sway, which at least says "listening".
+            !levels && "motion-safe:animate-[wave-idle_1.3s_ease-in-out_infinite]",
+          )}
+          style={levels ? { transform: "scaleY(0.12)" } : { animationDelay: `${(i % 7) * 0.13}s` }}
         />
       ))}
     </span>
