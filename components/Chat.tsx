@@ -35,8 +35,8 @@ import { answerApproval, prepareUploads, resolveApproval, sendMessage } from "@/
 import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
-import { joinTranscript, mergeTranscript, readResults } from "@/lib/transcript";
 import { clearStaged, keepStaged, takeStaged } from "@/lib/staged";
+import { useVoice } from "@/lib/voice";
 
 /* ============================================================
    The whole input surface of Biblo.
@@ -126,10 +126,25 @@ export function Chat({
      appended to it live, so dictating never eats what you typed. */
   const beforeDictation = useRef("");
 
-  const { listening, supported, start, stop } = useDictation((heard) => {
-    const base = beforeDictation.current;
-    applyText(base ? `${base} ${heard}` : heard);
-  });
+  /* Dictation is a recording sent to a transcription model, not the
+     browser's own recogniser: no beeps, no dropped words, punctuation
+     included, and it works on an iPhone, which SpeechRecognition
+     never did. The words land when you stop rather than as you talk. */
+  const {
+    state: voice,
+    supported,
+    start,
+    stop,
+    cancel: cancelVoice,
+  } = useVoice(
+    (heard) => {
+      const base = beforeDictation.current;
+      applyText(base ? `${base} ${heard}` : heard);
+      window.setTimeout(() => fieldRef.current?.focus(), 0);
+    },
+    (why) => setError(why),
+  );
+  const listening = voice === "recording";
 
   /* While recording with words on screen, the composer always takes
      the two-row shape: text on its own full row, and the button row
@@ -138,6 +153,7 @@ export function Chat({
   const rowWrapped = wrapped || (listening && text.trim().length > 0);
 
   function toggleMic() {
+    if (voice === "working") return;
     if (listening) {
       stop();
       // Re-judge the layout without the ripple in the row.
@@ -145,7 +161,7 @@ export function Chat({
       return;
     }
     beforeDictation.current = text.trim();
-    start();
+    void start();
   }
 
   /* Scrolls the container to its true bottom. scrollIntoView on the
@@ -393,7 +409,7 @@ export function Chat({
        stop lets the engine flush one last result into the freshly
        cleared field, which read as "it's still recording". */
     if (listening) {
-      stop(true);
+      cancelVoice();
       measureWrap("");
     }
 
@@ -712,7 +728,9 @@ export function Chat({
             }}
             enterKeyHint="send"
             autoCapitalize="sentences"
-            placeholder={listening ? "" : "Type an expense, or say something"}
+            placeholder={
+              listening ? "" : voice === "working" ? "Writing that down…" : "Type an expense, or say something"
+            }
             aria-label="Message"
             className="chat-field max-h-[32dvh] min-h-[2.5rem] w-full resize-none bg-transparent py-2 text-body text-ink outline-none placeholder:text-ink/30"
           />
@@ -734,19 +752,34 @@ export function Chat({
             <button
               type="button"
               onClick={toggleMic}
-              aria-label={listening ? "Stop dictating" : "Dictate"}
+              disabled={voice === "working"}
+              aria-label={
+                voice === "working"
+                  ? "Writing down what you said"
+                  : listening
+                    ? "Stop dictating"
+                    : "Dictate"
+              }
               aria-pressed={listening}
               className={cn(
                 "mb-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,color] duration-press ease-out-strong active:scale-[0.92]",
                 listening
                   ? "bg-ember text-ink motion-safe:animate-[pulse-mic_1.4s_ease-in-out_infinite]"
-                  : "text-ink/60 hover:text-ink",
+                  : voice === "working"
+                    ? "text-ink/70"
+                    : "text-ink/60 hover:text-ink",
                 // First of the pair, so this is what pushes them right.
                 rowWrapped && "order-3",
                 wrapped && !listening && "ml-auto",
               )}
             >
-              {listening ? <Stop size={18} weight="fill" /> : <Microphone size={20} />}
+              {voice === "working" ? (
+                <CircleNotch size={18} weight="bold" className="animate-spin" />
+              ) : listening ? (
+                <Stop size={18} weight="fill" />
+              ) : (
+                <Microphone size={20} />
+              )}
             </button>
           ) : null}
 
@@ -1678,155 +1711,3 @@ function Empty({ onPick }: { onPick: (t: string) => void }) {
    because an audio file is something neither the app nor Claude can
    read. Unsupported browsers simply do not get the button. */
 
-type SpeechWindow = {
-  SpeechRecognition?: new () => SpeechRecognitionLike;
-  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  abort?: () => void;
-  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-function useDictation(onTranscript: (text: string) => void) {
-  const [listening, setListening] = useState(false);
-  const ref = useRef<SpeechRecognitionLike | null>(null);
-  const cb = useRef(onTranscript);
-  /** Transcript from sessions that have already ended and restarted. */
-  const carried = useRef("");
-  /** The finalised part of the session running right now. */
-  const sessionFinal = useRef("");
-  /** What the user wants, as opposed to what the engine is doing. */
-  const wanted = useRef(false);
-  /** Set on a discarding stop: late results from the engine are
-   *  thrown away instead of reaching the field. */
-  const deaf = useRef(false);
-
-  /* Whether the browser can do this is a fixed fact about the
-     browser, not state that changes, so it is read through
-     useSyncExternalStore. That keeps it out of an effect and still
-     renders false on the server, where there is no window. */
-  const supported = useSyncExternalStore(
-    () => () => {},
-    () => {
-      const w = window as unknown as SpeechWindow;
-      return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition);
-    },
-    () => false,
-  );
-
-  // Built on first use rather than on mount: nothing is needed until
-  // the button is actually pressed.
-  function get() {
-    if (ref.current) return ref.current;
-    const w = window as unknown as SpeechWindow;
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return null;
-
-    const r = new Ctor();
-    /* One long session everywhere. The short-session Android
-       workaround made the OS play its recognition beep at every
-       pause, which read as random clicking; the doubled words it
-       dodged are now handled by deduping re-emitted finals in
-       lib/transcript.ts instead. */
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = "en-NG";
-
-    /* Rebuilt from the full results list every time, never appended
-       to. Android's engine re-emits and grows its entries, so there
-       the chunks are overlap-merged; desktop concatenates plainly and
-       keeps every word exactly as spoken. See lib/transcript.ts. */
-    const merge = /Android/i.test(navigator.userAgent);
-    r.onresult = (e) => {
-      if (deaf.current) return;
-      const { settled, interim } = readResults(e.results, { merge });
-      sessionFinal.current = settled;
-      cb.current(joinTranscript(carried.current, settled, interim, { merge }));
-    };
-
-    r.onend = () => {
-      // The results list resets on restart, so bank this session's
-      // finals before they disappear.
-      if (sessionFinal.current.trim()) {
-        carried.current = merge
-          ? mergeTranscript(carried.current, sessionFinal.current).trimEnd() + " "
-          : (carried.current + sessionFinal.current).trimEnd() + " ";
-      }
-      sessionFinal.current = "";
-
-      if (!wanted.current) {
-        setListening(false);
-        return;
-      }
-
-      // A restart inside onend can throw or loop; a beat of delay
-      // keeps it to one chime rather than a stutter.
-      window.setTimeout(() => {
-        if (!wanted.current) return;
-        try {
-          r.start();
-        } catch {
-          wanted.current = false;
-          setListening(false);
-        }
-      }, 250);
-    };
-
-    r.onerror = () => {
-      wanted.current = false;
-      setListening(false);
-    };
-
-    ref.current = r;
-    return r;
-  }
-
-  const start = () => {
-    // Refreshed here rather than during render: a ref written while
-    // rendering is a side effect in the render phase.
-    cb.current = onTranscript;
-    const r = get();
-    if (!r) return;
-    carried.current = "";
-    sessionFinal.current = "";
-    wanted.current = true;
-    deaf.current = false;
-    try {
-      r.start();
-      setListening(true);
-    } catch {
-      wanted.current = false;
-      setListening(false);
-    }
-  };
-
-  /* Two flavours of stopping. The mic button stops politely: the
-     engine may still deliver one final, better-punctuated result,
-     and it lands in the field the user is still looking at. Send
-     stops with discard=true: everything already on screen has been
-     sent, so anything the engine says after this is noise. */
-  const stop = (discard = false) => {
-    cb.current = onTranscript;
-    wanted.current = false;
-    const r = ref.current;
-    if (r) {
-      if (discard) {
-        deaf.current = true;
-        try { (r.abort ?? r.stop).call(r); } catch {}
-      } else {
-        try { r.stop(); } catch {}
-      }
-    }
-    setListening(false);
-  };
-
-  return { listening, supported, start, stop };
-}
