@@ -770,8 +770,10 @@ export function Chat({
                   : voice === "working"
                     ? "text-ink/70"
                     : "text-ink/60 hover:text-ink",
-                // First of the pair, so this is what pushes them right.
-                rowWrapped && "order-3",
+                // First of the pair, so this is what pushes them right -
+                // except while recording, when send is gone and this
+                // button stands in its place at the end of the row.
+                rowWrapped && (listening ? "order-4" : "order-3"),
                 wrapped && !listening && "ml-auto",
               )}
             >
@@ -785,6 +787,10 @@ export function Chat({
             </button>
           ) : null}
 
+          {/* Recording? There is no send button. Stop is the only
+              thing to press, so a tap meant to end dictation can
+              never post a half-spoken message by mistake. */}
+          {listening ? null : (
           <button
             type="button"
             onClick={send}
@@ -810,6 +816,7 @@ export function Chat({
               <ArrowUp size={18} weight="bold" />
             )}
           </button>
+          )}
         </div>
 
         <input
