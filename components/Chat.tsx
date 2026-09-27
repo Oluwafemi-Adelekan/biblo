@@ -1731,12 +1731,15 @@ function ThinkingLine({ message, since }: { message: Message; since: number }) {
 }
 
 function Empty({ onPick }: { onPick: (t: string) => void }) {
-  const EXAMPLES = ["5k fuel", "2,000 lunch", "barber 5000", "paid mum 100k"];
+  /* Money in belongs in the examples: without one, nothing on a new
+     account suggests you can record being paid, and people look for
+     a form that does not exist. */
+  const EXAMPLES = ["5k fuel", "2,000 lunch", "got paid 250k", "paid mum 100k"];
   return (
     <div className="py-10 text-center">
-      <p className="text-title">Tell me what you spent.</p>
-      <p className="mx-auto mt-2 max-w-[26ch] text-meta text-ink/60">
-        Type it, say it, or send a receipt.
+      <p className="text-title">Tell me what you spent, or earned.</p>
+      <p className="mx-auto mt-2 max-w-[28ch] text-meta text-ink/60">
+        Type it, say it, or send a receipt. Money in counts too.
       </p>
       <ul className="mt-5 flex flex-wrap justify-center gap-2">
         {EXAMPLES.map((x) => (

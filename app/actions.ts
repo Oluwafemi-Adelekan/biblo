@@ -706,11 +706,13 @@ export async function createCategory(_prev: unknown, form: FormData) {
   const cap = Number(String(form.get("cap") ?? "0").replace(/[^\d.]/g, "")) || 0;
   const icon = String(form.get("icon") ?? "Tag");
   const month = String(form.get("month"));
+  const kind = String(form.get("kind")) === "income" ? "income" : "spend";
 
   if (!name) return { ok: false as const, error: "Give it a name." };
 
   try {
-    await addCategory({ name, icon, cap, month });
+    // You do not cap money coming in.
+    await addCategory({ name, icon, cap: kind === "income" ? 0 : cap, month, kind });
   } catch (e) {
     return { ok: false as const, error: (e as Error).message };
   }

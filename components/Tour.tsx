@@ -18,7 +18,7 @@ const STEPS: { sel: string | null; title: string; body: string }[] = [
   {
     sel: 'nav a[href="/chat"]',
     title: "Everything starts in Chat.",
-    body: "Type “5k fuel”, dictate it, or send a photo of a receipt - it gets read and filed on its own. When it needs your yes, you get a button, not a form.",
+    body: "Type “5k fuel”, dictate it, or send a photo of a receipt - it gets read and filed on its own. Money coming in counts too: “got paid 250k”. When it needs your yes, you get a button, not a form.",
   },
   {
     sel: 'nav a[href="/budget"]',

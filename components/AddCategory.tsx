@@ -20,6 +20,10 @@ const CHOICES = [
 export function AddCategory({ month }: { month: string }) {
   const [open, setOpen] = useState(false);
   const [icon, setIcon] = useState(CHOICES[0]);
+  /* Money out or money in. Everyone starts with one generic Income,
+     which is fine for a salary and useless the moment there are two
+     sources - so a category can be either. */
+  const [kind, setKind] = useState<"spend" | "income">("spend");
 
   const [state, action, busy] = useActionState(
     async (prev: unknown, form: FormData) => {
@@ -45,6 +49,7 @@ export function AddCategory({ month }: { month: string }) {
         <form action={action} className="bg-bone">
           <input type="hidden" name="month" value={month} />
           <input type="hidden" name="icon" value={icon} />
+          <input type="hidden" name="kind" value={kind} />
 
           <div className="flex items-center justify-between border-b border-rule px-5 py-4">
             <Label tone="dim">New category</Label>
@@ -59,7 +64,29 @@ export function AddCategory({ month }: { month: string }) {
           </div>
 
           <div className="px-5 py-5">
-            <label htmlFor="cat-name" className="block">
+            <div className="grid grid-cols-2 gap-px bg-rule">
+              {(
+                [
+                  ["spend", "Money out"],
+                  ["income", "Money in"],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  aria-pressed={kind === k}
+                  className={cn(
+                    "py-3 text-label uppercase transition-colors duration-press",
+                    kind === k ? "bg-ink text-bone" : "bg-bone text-ink/60 hover:bg-ink/5",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label htmlFor="cat-name" className="mt-6 block">
               <Label tone="dim">Name</Label>
             </label>
             <input
@@ -68,23 +95,33 @@ export function AddCategory({ month }: { month: string }) {
               required
               autoFocus
               autoCapitalize="words"
-              placeholder="Travel"
+              placeholder={kind === "income" ? "Salary" : "Travel"}
               className="chat-field mt-1.5 w-full border-b border-rule bg-transparent pb-2 text-title text-ink outline-none placeholder:text-ink/25"
             />
 
-            <label htmlFor="cat-cap" className="mt-6 block">
-              <Label tone="dim">Monthly cap</Label>
-            </label>
-            <div className="mt-1.5 flex items-baseline gap-1 border-b border-rule pb-2">
-              <span className="text-title text-ink/40">₦</span>
-              <input
-                id="cat-cap"
-                name="cap"
-                inputMode="numeric"
-                placeholder="0"
-                className="chat-field tnum w-full bg-transparent text-title text-ink outline-none placeholder:text-ink/25"
-              />
-            </div>
+            {/* You cap what you spend, not what arrives. */}
+            {kind === "spend" ? (
+              <>
+                <label htmlFor="cat-cap" className="mt-6 block">
+                  <Label tone="dim">Monthly cap</Label>
+                </label>
+                <div className="mt-1.5 flex items-baseline gap-1 border-b border-rule pb-2">
+                  <span className="text-title text-ink/40">₦</span>
+                  <input
+                    id="cat-cap"
+                    name="cap"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="chat-field tnum w-full bg-transparent text-title text-ink outline-none placeholder:text-ink/25"
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 text-meta text-ink/60">
+                Money in has no cap. Say &ldquo;got paid 120k salary&rdquo; in the chat and
+                it lands here.
+              </p>
+            )}
 
             <div className="mt-6">
               <Label tone="dim">Icon</Label>
@@ -116,7 +153,7 @@ export function AddCategory({ month }: { month: string }) {
               disabled={busy}
               className="mt-6 w-full bg-ember px-5 py-4 text-label uppercase text-ink transition-[transform,background-color,opacity] duration-press ease-out-strong hover:bg-ember-deep active:scale-[0.98] disabled:opacity-50"
             >
-              {busy ? "Adding" : "Add category"}
+              {busy ? "Adding" : kind === "income" ? "Add income source" : "Add category"}
             </button>
           </div>
           <div className="h-[max(1.25rem,env(safe-area-inset-bottom))]" />

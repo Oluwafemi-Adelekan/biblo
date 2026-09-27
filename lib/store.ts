@@ -333,6 +333,8 @@ export async function addCategory(input: {
   icon: string;
   cap: number;
   month: string;
+  /** A place money goes, or a place it comes from. */
+  kind?: "spend" | "income";
 }): Promise<Category> {
   const id = input.name
     .toLowerCase()
@@ -351,12 +353,13 @@ export async function addCategory(input: {
     .maybeSingle();
   if (existing.data) throw new Error(`${input.name} already exists.`);
 
-  // Income sorts last, so a new spend category slots in just before it.
+  const kind = input.kind === "income" ? "income" : "spend";
+  // Spending sorts above income, and each new one goes below its own.
   const { data: top } = await db()
     .from("categories")
     .select("sort")
     .eq("user_id", uid)
-    .eq("kind", "spend")
+    .eq("kind", kind)
     .order("sort", { ascending: false })
     .limit(1);
 
@@ -370,7 +373,7 @@ export async function addCategory(input: {
       group: null,
       // Its own name is the first thing to match on; Claude adds more.
       matches: [input.name.toLowerCase()],
-      kind: "spend",
+      kind,
       sort: (top?.[0]?.sort ?? 0) + 1,
     })
     .select()

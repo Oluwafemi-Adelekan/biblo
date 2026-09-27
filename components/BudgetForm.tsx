@@ -53,6 +53,10 @@ export function BudgetForm({
   // Two categories share a heading; the rest stand alone. Render the
   // grouping only where it exists rather than inventing one per row.
   const spend = categories.filter((c) => c.kind === "spend");
+  /* Where money comes FROM. One generic Income is enough until there
+     are two sources, and then it is not - so they are listed here,
+     capless, and a new one can be added like any other category. */
+  const sources = categories.filter((c) => c.kind === "income");
   const groups: { name: string | null; items: Category[] }[] = [];
   for (const c of spend) {
     const last = groups[groups.length - 1];
@@ -67,7 +71,7 @@ export function BudgetForm({
       <div className="border-y border-rule bg-bone px-5 py-4">
         <div className="flex items-center justify-between">
           <label htmlFor="income">
-            <Label tone="dim">Expected income</Label>
+            <Label tone="dim">Income you expect</Label>
           </label>
           {/* Same preference as the home screen: hide it in one place
               and it is hidden in the other. */}
@@ -188,6 +192,31 @@ export function BudgetForm({
           </span>
         </div>
       </div>
+
+      {sources.length > 0 ? (
+        <>
+          <div className="mt-6 px-5 pb-3">
+            <Label as="h2" tone="dim">
+              Money in
+            </Label>
+          </div>
+          <div className="divide-y divide-rule border-y border-rule bg-bone">
+            {sources.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 px-5 py-3.5">
+                <span className="flex size-8 shrink-0 items-center justify-center bg-moss text-bone">
+                  <CategoryIcon name={c.icon} size={15} />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-body text-ink">{c.name}</span>
+                <span className="text-label uppercase text-ink/45">No cap</span>
+              </div>
+            ))}
+          </div>
+          <p className="px-5 pt-2.5 text-meta text-ink/55">
+            Say what you were paid in the chat and it lands under one of these.
+            Add another with New category, set to money in.
+          </p>
+        </>
+      ) : null}
 
       <div className="mt-5 px-5">
         <button
