@@ -45,9 +45,13 @@ export function ExpenseRow({
             />
           ) : null}
         </span>
-        <span className="mt-0.5 block text-label uppercase text-ink/50">
+        {/* The note is what tells two identical-looking rows apart -
+            two tyres at the same price from two different people read
+            as a duplicate without it. Category alone never could. */}
+        <span className="mt-0.5 block truncate text-label uppercase text-ink/50">
           {showDay ? `${Number(e.date.slice(8))} · ` : ""}
           {category?.name ?? "Uncategorised"}
+          {e.note ? ` · ${e.note}` : ""}
         </span>
       </span>
 
