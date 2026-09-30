@@ -197,6 +197,8 @@ export async function readWithAI(input: {
   validIds: Set<string>;
   /** What to call the person in the chat. */
   userName: string;
+  /** Set on the second attempt, when the first one gave up. */
+  insist?: boolean;
 }): Promise<AiReading> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
@@ -261,7 +263,16 @@ ${t.text}
         tools: [{ type: "web_search" }],
         max_output_tokens: 4000,
         input: [
-          { role: "system", content: prompt(input.categories, input.context, today, input.userName) },
+          {
+            role: "system",
+            content:
+              prompt(input.categories, input.context, today, input.userName) +
+              (input.insist
+                ? `
+
+YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobody else will do it. Splitting a long receipt between two people, reading a photographed till roll, working out which lines belong to whom - that is the work, not a reason to defer. Do it now: file what you can read, and for anything you genuinely cannot make out, say which line it is and ask. "defer" is not an option.`
+                : ""),
+          },
           { role: "user", content },
         ],
       }),

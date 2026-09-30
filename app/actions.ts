@@ -355,7 +355,7 @@ async function processScoped(messageId: string) {
     const userName =
       prefs.name?.trim().split(/\s+/)[0] || email?.split("@")[0] || "friend";
 
-    let reading = await readWithAI({
+    const ask = {
       text: carriedNote ? `${msg.text ?? ""}
 
 ${carriedNote}` : msg.text,
@@ -367,7 +367,16 @@ ${carriedNote}` : msg.text,
       context,
       validIds,
       userName,
-    });
+    };
+    let reading = await readWithAI(ask);
+
+    /* Giving up is not a real answer: there is no queue behind it.
+       Splitting a long receipt between two people is the work, not
+       grounds for a shrug - so ask once more, plainly, before
+       telling someone their message went nowhere. */
+    if (reading.kind === "defer") {
+      reading = await readWithAI({ ...ask, insist: true });
+    }
 
     /* Femi's rule, made mechanical: some changes go through the
        approval card even when the model is sure of itself. Changing
@@ -426,8 +435,8 @@ ${carriedNote}` : msg.text,
     }
 
     if (reading.kind === "defer") {
-      /* There is no queue behind a defer any more. Rather than park
-         the message forever, say plainly that it was not done. */
+      /* It gave up twice. Rather than park the message forever, say
+         plainly that it was not done. */
       await giveUp(
         messageId,
         "I couldn't work that one out well enough to file it. Tell me the figures and I'll put them in.",
