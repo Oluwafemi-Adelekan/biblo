@@ -18,6 +18,87 @@ export const WAVE_BARS = 26;
 
 export type VoiceState = "idle" | "recording" | "working";
 
+/* Live dictation.
+
+   The words appear while you are still talking. The browser sends its
+   microphone straight to the transcription service over a peer
+   connection, and phrases come back as you finish them - so a name it
+   mishears is visible immediately, not two minutes later.
+
+   Our API key is never involved: the server hands out a secret that
+   expires in about a minute and can do nothing but transcribe.
+
+   If any of it fails to set up, the caller falls back to recording
+   the clip and sending it at the end, which always works. */
+type Live = {
+  pc: RTCPeerConnection;
+  dc: RTCDataChannel;
+};
+
+async function openLive(
+  stream: MediaStream,
+  onPhrase: (settled: string, partial: string) => void,
+): Promise<Live | null> {
+  let key: string;
+  let url: string;
+  try {
+    const r = await fetch("/api/voice/session", { method: "POST" });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { key?: string; url?: string };
+    if (!j.key || !j.url) return null;
+    key = j.key;
+    url = j.url;
+  } catch {
+    return null;
+  }
+
+  try {
+    const pc = new RTCPeerConnection();
+    const dc = pc.createDataChannel("oai-events");
+
+    /* Everything finished so far, and the phrase being spoken now.
+       They are kept apart so the live words can be replaced by the
+       tidier final version without eating what came before. */
+    let settled = "";
+    let partial = "";
+    dc.onmessage = (e) => {
+      let m: { type?: string; delta?: string; transcript?: string };
+      try {
+        m = JSON.parse(String(e.data));
+      } catch {
+        return;
+      }
+      if (!m.type?.includes("input_audio_transcription")) return;
+      if (m.type.endsWith(".delta") && m.delta) {
+        partial += m.delta;
+        onPhrase(settled, partial);
+      } else if (m.type.endsWith(".completed") && m.transcript) {
+        settled = (settled ? settled + " " : "") + m.transcript.trim();
+        partial = "";
+        onPhrase(settled, "");
+      }
+    };
+
+    for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/sdp" },
+      body: offer.sdp,
+    });
+    if (!res.ok) {
+      pc.close();
+      return null;
+    }
+    await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+    return { pc, dc };
+  } catch {
+    return null;
+  }
+}
+
 /** The format this browser will actually give us. */
 function pickType() {
   const wanted = [
@@ -53,6 +134,11 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
   const reads = useRef(0);
   const audio = useRef<AudioContext | null>(null);
   const meter = useRef<number | null>(null);
+  /** The live connection, when one could be opened. */
+  const live = useRef<Live | null>(null);
+  /** What live dictation has settled on so far, so stopping can use
+   *  it immediately instead of uploading the clip again. */
+  const heardLive = useRef("");
 
   const supported =
     typeof navigator !== "undefined" &&
@@ -60,6 +146,13 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
     typeof MediaRecorder !== "undefined";
 
   const cleanup = () => {
+    if (live.current) {
+      try {
+        live.current.dc.close();
+        live.current.pc.close();
+      } catch {}
+      live.current = null;
+    }
     if (meter.current !== null) {
       cancelAnimationFrame(meter.current);
       meter.current = null;
@@ -144,6 +237,8 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
         const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
         const heard = peak.current;
         const measured = reads.current > 20;
+        const said = heardLive.current.trim();
+        const usedLive = Boolean(live.current) && said.length > 0;
         cleanup();
         if (discard.current || blob.size < 1200) {
           setState("idle");
@@ -156,6 +251,17 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
           onError("I didn't hear anything that time.");
           return;
         }
+        /* Live is a preview, not the record. Opening the connection
+           takes a moment, so the first words of a sentence can be
+           spoken before it is listening - and losing the opening of
+           someone's dictation is worse than making them wait a beat.
+           The whole clip is always transcribed at the end, and that
+           version replaces whatever the preview showed. */
+        if (usedLive) {
+          // Keep the preview on screen while the real one is fetched.
+          onText(said);
+        }
+
         setState("working");
         try {
           const ext = (r.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
@@ -210,6 +316,17 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
       // Timeslice so a long recording is not one enormous final blob.
       r.start(1000);
       setState("recording");
+
+      /* Then try for live words. The recorder above keeps running
+         either way, so if the live connection never opens or drops
+         mid-sentence, the clip is still there to fall back on. */
+      heardLive.current = "";
+      const l = await openLive(s, (done, saying) => {
+        const all = (done + (saying ? " " + saying : "")).trim();
+        heardLive.current = done.trim();
+        if (all) onText(all);
+      });
+      if (l) live.current = l;
     } catch {
       cleanup();
       setState("idle");
