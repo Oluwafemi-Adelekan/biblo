@@ -31,7 +31,13 @@ import {
 import { dayLabel, naira } from "@/lib/format";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
-import { answerApproval, prepareUploads, resolveApproval, sendMessage } from "@/app/actions";
+import {
+  answerApproval,
+  prepareUploads,
+  reclaimStale,
+  resolveApproval,
+  sendMessage,
+} from "@/app/actions";
 import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
@@ -529,6 +535,20 @@ export function Chat({
     (m) => m.from === "you" && m.status === "pending" && m.id !== PENDING_ID,
   );
   const working = Boolean(oldestPending);
+
+  /* A read takes seconds. Minutes means the work died somewhere no
+     error could reach, so stop pretending and hand the message back. */
+  const reclaimed = useRef(false);
+  useEffect(() => {
+    if (!oldestPending || reclaimed.current) return;
+    const age = Date.now() - new Date(oldestPending.at).getTime();
+    const wait = Math.max(0, 4 * 60_000 - age);
+    const t = window.setTimeout(() => {
+      reclaimed.current = true;
+      void reclaimStale();
+    }, wait);
+    return () => window.clearTimeout(t);
+  }, [oldestPending]);
 
   /* An open approval takes over the composer entirely - his ask: the
      input goes, the question and its two buttons stand in its place.

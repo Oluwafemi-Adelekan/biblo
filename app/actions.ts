@@ -161,7 +161,51 @@ async function processWithReader(messageId: string) {
       .maybeSingle();
     if (m?.user_id) await runAsUser(m.user_id, () => processScoped(messageId));
   } catch {
-    // Say nothing and leave it pending: the safe default.
+    // The inner function owns its own failures; anything escaping
+    // here is the lookup itself, and the sweep below still catches it.
+  }
+}
+
+/** A message can also be orphaned without any error reaching us -
+ *  the background work is killed mid-flight, so no catch ever runs
+ *  and the spinner turns forever. The chat calls this when it
+ *  notices one has been waiting far longer than any read takes. */
+export async function reclaimStale() {
+  const { getMessages } = await import("@/lib/data");
+  const cutoff = Date.now() - 4 * 60_000;
+  let freed = 0;
+  for (const m of await getMessages()) {
+    if (m.from !== "you" || m.status !== "pending") continue;
+    if (Date.parse(m.at) > cutoff) continue;
+    await completeMessage(m.id);
+    freed++;
+  }
+  if (freed > 0) {
+    await addMessage({
+      from: "app",
+      text:
+        freed === 1
+          ? "That one didn't go through on my side - nothing was filed. Send it again and I'll read it properly."
+          : `${freed} messages didn't go through on my side - nothing was filed. Send them again and I'll read them properly.`,
+    });
+    revalidatePath("/", "layout");
+  }
+  return { ok: true as const, freed };
+}
+
+/** Nothing read it, nothing answered, and nobody is coming. Say so
+ *  and give the message back, rather than leaving a spinner turning
+ *  for hours - which is exactly what it did before this existed. */
+async function giveUp(messageId: string, why: string) {
+  try {
+    const { getMessages } = await import("@/lib/data");
+    const msg = (await getMessages()).find((m) => m.id === messageId);
+    if (!msg || msg.status !== "pending") return;
+    await completeMessage(messageId);
+    await addMessage({ from: "app", text: why });
+    revalidatePath("/", "layout");
+  } catch {
+    // Nothing further to try.
   }
 }
 
@@ -212,7 +256,10 @@ async function processScoped(messageId: string) {
         minute: "2-digit",
       });
       for (const a of prev.attachments) {
-        if (carried.length >= 8) break;
+        /* Kept deliberately small. Every one of these is sent at high
+           detail, and a dozen of them in one request is what turns a
+           four-second read into a timeout. */
+        if (carried.length + msg.attachments.length >= 6) break;
         if (!msg.attachments.some((b) => b.url === a.url)) carried.push({ a, when });
       }
     }
@@ -379,13 +426,14 @@ ${carriedNote}` : msg.text,
     }
 
     if (reading.kind === "defer") {
-      /* Say nothing. The message stays pending and the chat keeps
-         showing its working state until the real work lands as a
-         real reply. A cheerful "I'll sort it shortly" here reads as
-         a finished turn, and Femi called that what it is: a lie. */
+      /* There is no queue behind a defer any more. Rather than park
+         the message forever, say plainly that it was not done. */
+      await giveUp(
+        messageId,
+        "I couldn't work that one out well enough to file it. Tell me the figures and I'll put them in.",
+      );
       return;
     }
-
     /* A question with the change attached. The composer becomes the
        card; a button applies or drops the proposal. */
     if (reading.kind === "ask") {
@@ -430,8 +478,10 @@ ${carriedNote}` : msg.text,
     });
     revalidatePath("/", "layout");
   } catch {
-    // Say nothing and leave it pending: silence here means Claude
-    // picks it up on the next /budget, which is the safe default.
+    await giveUp(
+      messageId,
+      "That one didn't go through on my side - nothing was filed. Send it again and I'll read it properly.",
+    );
   }
 }
 
