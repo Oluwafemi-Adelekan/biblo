@@ -108,6 +108,16 @@ receipt makes you suspect it has.
 other person - siblings Dara and Dami, Sope, cousins, Damola, Hakeem, Eniola,
 friends - is `giving`, whatever the occasion. Money lent out (Timmy) is `loans`.
 
+## Money that only passes through is not filed
+
+Money that lands for someone else and leaves again the same day, or that Femi
+pays on someone's behalf and gets straight back, never belonged to him: no
+expense, no income, no loan. Say so in the reply instead of filing it. Seen
+so far: Sope's 100,000 for crypto, Timmy's 30,000 subscription, Timmy's
+22,900 share of the De Prince groceries. A loan is the opposite - it sits in
+`loans` until it comes back. The test is time: same-day is pass-through,
+waiting is a loan.
+
 ## Money coming back is not income
 
 A loan repaid, a refund, a friend settling their share: file it in the SAME
