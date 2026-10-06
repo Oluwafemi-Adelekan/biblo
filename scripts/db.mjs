@@ -15,6 +15,9 @@
      node scripts/db.mjs ai 20             # audit what the reader filed
      node scripts/db.mjs redate 2026-09-01 exp_0053 exp_0054
      node scripts/db.mjs month 2026-09
+     node scripts/db.mjs share doc.json "Benin, what everyone owes"
+     node scripts/db.mjs shares            # links already out there
+     node scripts/db.mjs unshare <token>   # stop one working
 */
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
@@ -376,6 +379,127 @@ switch (cmd) {
       console.log(
         `  ${p.created_at.slice(0, 10)}  ${p.owner ? "OWNER " : "      "} ${p.email}`,
       );
+    break;
+  }
+
+  /* Publish a page anyone with the link can read, and list or
+     revoke the ones already out there. The document is a JSON file
+     in the shape lib/share describes; it is copied into storage as
+     a snapshot and never re-read from the books. */
+  case "share": {
+    const [file, ...rest] = args;
+    if (!file) die('usage: db.mjs share <doc.json> "Title" ["note"]');
+    const [title, note] = rest;
+    if (!title) die("Give the page a title.");
+
+    const doc = JSON.parse(readFileSync(file, "utf8"));
+    if (doc.kind !== "ledger" && doc.kind !== "period") {
+      die(`Unknown document kind: ${doc.kind}`);
+    }
+
+    const { data: owner, error: oerr } = await db
+      .from("profiles")
+      .select("id, email, settings")
+      .eq("owner", true)
+      .limit(1)
+      .maybeSingle();
+    if (oerr) die(oerr.message);
+    if (!owner) die("No owner profile.");
+
+    const ALPHA =
+      "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const token = Array.from(
+      crypto.getRandomValues(new Uint8Array(22)),
+      (b) => ALPHA[b % ALPHA.length],
+    ).join("");
+
+    const payload = {
+      v: 1,
+      token,
+      owner: owner.id,
+      by: owner.settings?.name || owner.email?.split("@")[0] || "Biblo",
+      title,
+      note: note || undefined,
+      createdAt: new Date().toISOString(),
+      doc,
+    };
+
+    const { error: uerr } = await storage.storage
+      .from("attachments")
+      .upload(`share--${token}.json`, JSON.stringify(payload), {
+        contentType: "application/json",
+        upsert: true,
+      });
+    if (uerr) die(uerr.message);
+
+    const index = [
+      { token, title, kind: doc.kind, createdAt: payload.createdAt },
+      ...(owner.settings?.shares ?? []),
+    ].slice(0, 50);
+    const { error: serr } = await db
+      .from("profiles")
+      .update({ settings: { ...owner.settings, shares: index } })
+      .eq("id", owner.id);
+    if (serr) die(serr.message);
+
+    console.log(`https://biblo-eight.vercel.app/s/${token}`);
+    break;
+  }
+
+  case "shares": {
+    const { data } = await db
+      .from("profiles")
+      .select("settings")
+      .eq("owner", true)
+      .limit(1)
+      .maybeSingle();
+    const list = data?.settings?.shares ?? [];
+    console.log(`${list.length} shared page(s)`);
+    for (const s of list)
+      console.log(
+        `  ${s.createdAt.slice(0, 10)}  ${s.revoked ? "REVOKED" : "live   "}  ${s.token}  ${s.title}`,
+      );
+    break;
+  }
+
+  case "unshare": {
+    const [token] = args;
+    if (!token) die("usage: db.mjs unshare <token>");
+
+    const { data: blob } = await storage.storage
+      .from("attachments")
+      .download(`share--${token}.json`);
+    if (!blob) die("No such page.");
+    const payload = JSON.parse(await blob.text());
+
+    const { error } = await storage.storage
+      .from("attachments")
+      .upload(
+        `share--${token}.json`,
+        JSON.stringify({ ...payload, revoked: true }),
+        { contentType: "application/json", upsert: true },
+      );
+    if (error) die(error.message);
+
+    const { data: owner } = await db
+      .from("profiles")
+      .select("id, settings")
+      .eq("id", payload.owner)
+      .maybeSingle();
+    if (owner) {
+      await db
+        .from("profiles")
+        .update({
+          settings: {
+            ...owner.settings,
+            shares: (owner.settings?.shares ?? []).map((s) =>
+              s.token === token ? { ...s, revoked: true } : s,
+            ),
+          },
+        })
+        .eq("id", owner.id);
+    }
+    console.log(`${token} is no longer readable.`);
     break;
   }
 

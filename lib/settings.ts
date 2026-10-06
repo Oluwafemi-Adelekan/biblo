@@ -6,6 +6,18 @@ import { profileRow, viewerId } from "./viewer";
 /* Per-user preferences, one jsonb on the profile. Small on purpose:
    every field here is something a person actually asked for. */
 
+/** One published link, as its owner sees it listed. The page it
+ *  points at lives in storage; see lib/share. Declared here rather
+ *  than there because settings cannot import share without the two
+ *  files importing each other. */
+export type ShareIndexEntry = {
+  token: string;
+  title: string;
+  kind: "ledger" | "period";
+  createdAt: string;
+  revoked?: boolean;
+};
+
 export type Settings = {
   /** Blur income figures until tapped. */
   hideIncome: boolean;
@@ -22,6 +34,9 @@ export type Settings = {
   name?: string;
   /** Which face from the avatar pack, by id. */
   avatar?: string;
+  /** Links they have published, newest first, so they can revoke
+   *  one later. The pages themselves live in storage. */
+  shares?: ShareIndexEntry[];
 };
 
 export const DEFAULTS: Settings = {

@@ -18,7 +18,12 @@ export async function middleware(req: NextRequest) {
     pathname === "/unlock" ||
     pathname === "/api/health" ||
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/api/cron/")
+    pathname.startsWith("/api/cron/") ||
+    /* A shared page. Holding the 22-character link is the whole
+       permission: the people it is meant for have no account here,
+       and the page itself is a fixed snapshot that reaches nothing
+       else in the books. */
+    pathname.startsWith("/s/")
   ) {
     return NextResponse.next();
   }
