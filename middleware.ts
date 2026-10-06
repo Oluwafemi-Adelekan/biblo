@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { COOKIE, same, token } from "@/lib/auth";
+import { BARE } from "@/lib/bare";
 
 /* The front door, now with accounts. A request gets through with a
    Supabase session (Google, or an emailed link), or with the owner's
@@ -13,17 +14,24 @@ import { COOKIE, same, token } from "@/lib/auth";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  /* A shared page. Holding the 22-character link is the whole
+     permission: the people it is meant for have no account here,
+     and the page itself is a fixed snapshot that reaches nothing
+     else in the books. The header tells the root layout to drop
+     the app's own furniture - a stranger should not be looking at
+     tabs that would only bounce them to a login screen. */
+  if (pathname.startsWith("/s/")) {
+    const headers = new Headers(req.headers);
+    headers.set(BARE, "1");
+    return NextResponse.next({ request: { headers } });
+  }
+
   if (
     pathname === "/login" ||
     pathname === "/unlock" ||
     pathname === "/api/health" ||
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/api/cron/") ||
-    /* A shared page. Holding the 22-character link is the whole
-       permission: the people it is meant for have no account here,
-       and the page itself is a fixed snapshot that reaches nothing
-       else in the books. */
-    pathname.startsWith("/s/")
+    pathname.startsWith("/api/cron/")
   ) {
     return NextResponse.next();
   }

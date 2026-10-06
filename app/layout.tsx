@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Archivo } from "next/font/google";
+import { BARE } from "@/lib/bare";
 import { BottomNav } from "@/components/BottomNav";
 import { DesktopHeader } from "@/components/DesktopHeader";
 import { UpdateNudge } from "@/components/UpdateNudge";
@@ -33,6 +35,17 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /* A shared page is read by people with no account here, so it gets
+     the ground and the type and nothing else: no tabs, no header, no
+     update nudge. The middleware marks those requests. */
+  if ((await headers()).get(BARE)) {
+    return (
+      <html lang="en" className={archivo.variable}>
+        <body className="bg-sage-dim">{children}</body>
+      </html>
+    );
+  }
+
   /* This fetch exists to put a dot on the chat tab. If it fails, the
      right outcome is no dot - not the platform's crash page over the
      entire app, which is what an unhandled throw here produces. */
