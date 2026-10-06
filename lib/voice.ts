@@ -5,128 +5,66 @@ import { useCallback, useRef, useState } from "react";
 /** How many bars of history the meter keeps: one per bar drawn. */
 export const WAVE_BARS = 26;
 
-/* Dictation, two ways.
+/* Dictation that writes as you speak, without a beep.
 
-   The browser's own recogniser does the listening: on Chrome and on
-   Android that is Google's, which hears Nigerian English, naira
-   amounts and names far better than sending a clip away did. It is
-   also instant - the words land as they are spoken rather than after
-   an upload - and it makes no sound.
+   The browser's own SpeechRecognition is the obvious answer and it
+   is the wrong one: on Android it drives the system recogniser,
+   which plays a tone every time it starts and stops, and nothing in
+   the web API can silence it. It also drops words and cannot be
+   told about naira, FiberOne or anyone's name.
 
-   An iPhone, an old browser, or a recogniser that errors out falls
-   back to the original path: record the clip, upload it at the end.
-   That is why the recorder below still runs underneath. Whichever
-   produced words first wins, and the recognised text is the record,
-   not a preview. */
+   So the microphone goes to a real transcription model, as it did
+   before - but it no longer waits for the end. The clip so far is
+   sent every few seconds while the person is still talking, and the
+   box fills in behind their voice. Each pass transcribes the whole
+   recording from the beginning, which is slightly wasteful and
+   completely robust: the text can only improve, there are no chunk
+   boundaries to cut a word in half, and the last pass is a full
+   clip rather than a stitched-together guess.
+
+   Then the words go through one more model that applies spoken
+   corrections and takes out the stumbles, which is the part that
+   makes it feel like typing rather than like a transcript. */
 
 export type VoiceState = "idle" | "recording" | "working";
 
-/* The Web Speech API is still prefixed on most browsers and is not
-   in the DOM lib, so it gets the narrow shape we actually use. */
-type Recognition = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onresult: ((e: SpeechResultEvent) => void) | null;
-  onerror: ((e: { error?: string }) => void) | null;
-  onend: (() => void) | null;
-};
-type SpeechResultEvent = {
-  resultIndex: number;
-  results: {
-    length: number;
-    [i: number]: { isFinal: boolean; 0: { transcript: string } };
-  };
-};
-type Live = { rec: Recognition; stop: () => void };
+/** How often the growing clip is sent while someone is still
+ *  speaking. Short enough that the box keeps up, long enough that a
+ *  normal sentence is one request rather than five. */
+const PARTIAL_EVERY = 3500;
 
-function recogniser(): Recognition | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: new () => Recognition;
-    webkitSpeechRecognition?: new () => Recognition;
-  };
-  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-  if (!Ctor) return null;
-  try {
-    return new Ctor();
-  } catch {
-    return null;
-  }
+/** Transcribe a clip and return the words, or null. Used for both
+ *  the passes taken while speaking and the final one. */
+async function transcribe(blob: Blob, ext: string, signal?: AbortSignal) {
+  const fd = new FormData();
+  fd.set("audio", new File([blob], `clip.${ext}`, { type: blob.type }));
+  const res = await fetch("/api/transcribe?stream=0", {
+    method: "POST",
+    body: fd,
+    signal,
+  });
+  if (!res.ok) return null;
+  const j = (await res.json().catch(() => ({}))) as { text?: string };
+  return (j.text ?? "").trim() || null;
 }
 
-/** Start listening. onPhrase gets everything settled so far and the
- *  words still being spoken, so the caller can show both. */
-function openLive(
-  onPhrase: (settled: string, partial: string) => void,
-): Live | null {
-  const rec = recogniser();
-  if (!rec) return null;
-
-  /* en-NG so amounts and names are heard the way they are said here.
-     A browser that does not have that voice falls back to its own
-     default rather than refusing. */
-  rec.lang = "en-NG";
-  /* Keep going through pauses. Without this it stops at the first
-     breath, which is what made the old browser path unusable. */
-  rec.continuous = true;
-  rec.interimResults = true;
-  rec.maxAlternatives = 1;
-
-  let settled = "";
-  let stopped = false;
-
-  rec.onresult = (e) => {
-    let partial = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      const said = r[0]?.transcript ?? "";
-      if (r.isFinal) settled += (settled ? " " : "") + said.trim();
-      else partial += said;
-    }
-    onPhrase(settled, partial.trim());
-  };
-
-  /* A recogniser that gives up mid-sentence - no-speech, a network
-     blip - must not take the dictation with it. The clip is still
-     recording underneath, so simply stop driving this one and let
-     the upload path produce the text. */
-  rec.onerror = () => {};
-
-  /* Chrome ends the session on its own after a long pause even with
-     continuous set. Restart until the caller actually stops, so a
-     thinking pause does not end the dictation. */
-  rec.onend = () => {
-    if (stopped) return;
-    try {
-      rec.start();
-    } catch {}
-  };
-
+/** Corrections applied, stumbles removed. Falls back to the words
+ *  exactly as heard if anything goes wrong - a dictation in the box
+ *  always beats an empty box. */
+async function tidy(text: string) {
   try {
-    rec.start();
+    const res = await fetch("/api/tidy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(22_000),
+    });
+    if (!res.ok) return text;
+    const j = (await res.json()) as { text?: string };
+    return (j.text ?? "").trim() || text;
   } catch {
-    return null;
+    return text;
   }
-
-  return {
-    rec,
-    /* onresult stays attached on the way out. Asking it to stop
-       makes it flush the words it is still holding, and dropping
-       the handler first threw away the end of every sentence. Only
-       the restart is cancelled. */
-    stop: () => {
-      stopped = true;
-      rec.onend = null;
-      try {
-        rec.stop();
-      } catch {}
-    },
-  };
 }
 
 function pickType() {
@@ -163,11 +101,13 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
   const reads = useRef(0);
   const audio = useRef<AudioContext | null>(null);
   const meter = useRef<number | null>(null);
-  /** The live connection, when one could be opened. */
-  const live = useRef<Live | null>(null);
-  /** What live dictation has settled on so far, so stopping can use
-   *  it immediately instead of uploading the clip again. */
-  const heardLive = useRef("");
+  /** The pass taken while someone is still speaking, so a slow one
+   *  can be abandoned the moment the recording ends. */
+  const partial = useRef<AbortController | null>(null);
+  const partialTimer = useRef<number | null>(null);
+  /** True while a pass is in flight, so they cannot pile up on a
+   *  slow connection. */
+  const passing = useRef(false);
 
   const supported =
     typeof navigator !== "undefined" &&
@@ -175,10 +115,13 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
     typeof MediaRecorder !== "undefined";
 
   const cleanup = () => {
-    if (live.current) {
-      live.current.stop();
-      live.current = null;
+    if (partialTimer.current !== null) {
+      clearInterval(partialTimer.current);
+      partialTimer.current = null;
     }
+    partial.current?.abort();
+    partial.current = null;
+    passing.current = false;
     if (meter.current !== null) {
       cancelAnimationFrame(meter.current);
       meter.current = null;
@@ -264,15 +207,6 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
         const heard = peak.current;
         const measured = reads.current > 20;
 
-        /* The recogniser flushes its last phrase a beat after being
-           asked to stop, and the recorder stops sooner than that.
-           Reading straight away cost the end of every sentence. */
-        if (live.current) {
-          live.current.stop();
-          await new Promise((r) => setTimeout(r, 400));
-        }
-        const said = heardLive.current.trim();
-        const usedLive = Boolean(live.current) && said.length > 0;
         cleanup();
         if (discard.current || blob.size < 1200) {
           setState("idle");
@@ -285,17 +219,6 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
           onError("I didn't hear anything that time.");
           return;
         }
-        /* The recogniser heard it, so that IS the dictation. It
-           listened to the whole thing from the first word, it is
-           already on screen, and uploading the clip to have it
-           rewritten only replaces good text with a guess - which is
-           what made this feel broken. Stop here. */
-        if (usedLive) {
-          onText(said);
-          setState("idle");
-          return;
-        }
-
         setState("working");
         try {
           const ext = (r.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
@@ -334,10 +257,11 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
               }
             }
             if (!said.trim()) onError("Nothing came through.");
+            else onText(await tidy(said.trim()));
           } else {
             const j = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
             if (!res.ok || !j.text) onError(j.error ?? "Nothing came through.");
-            else onText(j.text);
+            else onText(await tidy(j.text.trim()));
           }
         } catch {
           onError("That didn't come through. Try again.");
@@ -351,17 +275,30 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
       r.start(1000);
       setState("recording");
 
-      /* Then hand the listening to the browser. The recorder above
-         keeps running regardless, so a browser with no recogniser,
-         or one that gives up mid-sentence, still has the clip to
-         fall back on. */
-      heardLive.current = "";
-      const l = openLive((done, saying) => {
-        const all = (done + (saying ? " " + saying : "")).trim();
-        heardLive.current = done.trim();
-        if (all) onText(all);
-      });
-      if (l) live.current = l;
+      /* Then keep sending the clip so far, so the words appear
+         behind the voice instead of after it. Each pass covers the
+         whole recording from the first word, so a pass that is slow
+         or fails costs nothing: the next one supersedes it, and the
+         pass taken when the button is released is the real one. */
+      const ext = (r.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
+      partialTimer.current = window.setInterval(() => {
+        if (passing.current || chunks.current.length === 0) return;
+        if (rec.current?.state !== "recording") return;
+        passing.current = true;
+        const soFar = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
+        const ac = new AbortController();
+        partial.current = ac;
+        void transcribe(soFar, ext, ac.signal)
+          .then((said) => {
+            /* Only while still recording. A pass that lands after
+               the final one would overwrite good text with older. */
+            if (said && rec.current?.state === "recording") onText(said);
+          })
+          .catch(() => {})
+          .finally(() => {
+            passing.current = false;
+          });
+      }, PARTIAL_EVERY);
     } catch {
       cleanup();
       setState("idle");

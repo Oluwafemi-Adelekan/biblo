@@ -94,8 +94,14 @@ export async function POST(req: NextRequest) {
   out.set("temperature", "0");
   /* Streamed, so the words appear as they are recognised instead of
      all at once at the end. The first of them lands about a second
-     before the finished sentence would have. */
-  out.set("stream", "true");
+     before the finished sentence would have.
+
+     The passes taken WHILE someone is still speaking ask for the
+     whole thing at once instead (stream=0): there is nothing to
+     watch arrive, and a plain JSON reply is one await rather than a
+     reader loop that has to be abandoned when the next pass starts. */
+  const streaming = req.nextUrl.searchParams.get("stream") !== "0";
+  if (streaming) out.set("stream", "true");
 
   try {
     const r = await fetch(
@@ -106,6 +112,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "That didn't come through. Try again." },
         { status: 502 },
+      );
+    }
+    if (!streaming) {
+      const j = (await r.json().catch(() => ({}))) as { text?: string };
+      return NextResponse.json(
+        { text: (j.text ?? "").trim() },
+        { headers: { "Cache-Control": "no-store" } },
       );
     }
     return new Response(r.body, {
