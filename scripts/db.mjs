@@ -446,6 +446,35 @@ switch (cmd) {
     break;
   }
 
+  /* Replace what a link already published, keeping the link itself
+     working. The people holding it see the corrected page. */
+  case "reshare": {
+    const [token, file] = args;
+    if (!token || !file) die("usage: db.mjs reshare <token> <doc.json>");
+
+    const { data: blob } = await storage.storage
+      .from("attachments")
+      .download(`share--${token}.json`);
+    if (!blob) die("No such page.");
+    const payload = JSON.parse(await blob.text());
+
+    const doc = JSON.parse(readFileSync(file, "utf8"));
+    if (doc.kind !== payload.doc.kind) {
+      die(`That page is a ${payload.doc.kind}; the file is a ${doc.kind}.`);
+    }
+
+    const { error } = await storage.storage
+      .from("attachments")
+      .upload(
+        `share--${token}.json`,
+        JSON.stringify({ ...payload, doc, updatedAt: new Date().toISOString() }),
+        { contentType: "application/json", upsert: true },
+      );
+    if (error) die(error.message);
+    console.log(`https://biblo-eight.vercel.app/s/${token} updated`);
+    break;
+  }
+
   case "shares": {
     const { data } = await db
       .from("profiles")
