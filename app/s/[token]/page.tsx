@@ -222,7 +222,7 @@ function describeSplit(who: string[] | undefined, people: SharedPerson[]) {
   return {
     heads,
     who:
-      out.length <= heads
+      out.length < heads
         ? `split ${heads} ways, everyone except ${list(out)}`
         : `split ${heads} ways, ${list(who)}`,
   };
