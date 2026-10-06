@@ -5,101 +5,130 @@ import { useCallback, useRef, useState } from "react";
 /** How many bars of history the meter keeps: one per bar drawn. */
 export const WAVE_BARS = 26;
 
-/* Recording, not "recognition".
+/* Dictation, two ways.
 
-   The browser's SpeechRecognition is what made dictation flaky: it
-   beeps on every pause, re-emits words, needs a network of its own,
-   and does not exist at all on an iPhone. This records the audio and
-   hands it to a transcription model on the way out, which is what
-   every serious voice input does. One mic stream, no beeps, and the
-   text arrives punctuated.
+   The browser's own recogniser does the listening: on Chrome and on
+   Android that is Google's, which hears Nigerian English, naira
+   amounts and names far better than sending a clip away did. It is
+   also instant - the words land as they are spoken rather than after
+   an upload - and it makes no sound.
 
-   The trade is honest: words appear when you stop, not as you speak. */
+   An iPhone, an old browser, or a recogniser that errors out falls
+   back to the original path: record the clip, upload it at the end.
+   That is why the recorder below still runs underneath. Whichever
+   produced words first wins, and the recognised text is the record,
+   not a preview. */
 
 export type VoiceState = "idle" | "recording" | "working";
 
-/* Live dictation.
-
-   The words appear while you are still talking. The browser sends its
-   microphone straight to the transcription service over a peer
-   connection, and phrases come back as you finish them - so a name it
-   mishears is visible immediately, not two minutes later.
-
-   Our API key is never involved: the server hands out a secret that
-   expires in about a minute and can do nothing but transcribe.
-
-   If any of it fails to set up, the caller falls back to recording
-   the clip and sending it at the end, which always works. */
-type Live = {
-  pc: RTCPeerConnection;
-  dc: RTCDataChannel;
+/* The Web Speech API is still prefixed on most browsers and is not
+   in the DOM lib, so it gets the narrow shape we actually use. */
+type Recognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: SpeechResultEvent) => void) | null;
+  onerror: ((e: { error?: string }) => void) | null;
+  onend: (() => void) | null;
 };
+type SpeechResultEvent = {
+  resultIndex: number;
+  results: {
+    length: number;
+    [i: number]: { isFinal: boolean; 0: { transcript: string } };
+  };
+};
+type Live = { rec: Recognition; stop: () => void };
 
-async function openLive(
-  stream: MediaStream,
-  onPhrase: (settled: string, partial: string) => void,
-): Promise<Live | null> {
-  let key: string;
-  let url: string;
+function recogniser(): Recognition | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => Recognition;
+    webkitSpeechRecognition?: new () => Recognition;
+  };
+  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+  if (!Ctor) return null;
   try {
-    const r = await fetch("/api/voice/session", { method: "POST" });
-    if (!r.ok) return null;
-    const j = (await r.json()) as { key?: string; url?: string };
-    if (!j.key || !j.url) return null;
-    key = j.key;
-    url = j.url;
-  } catch {
-    return null;
-  }
-
-  try {
-    const pc = new RTCPeerConnection();
-    const dc = pc.createDataChannel("oai-events");
-
-    /* Everything finished so far, and the phrase being spoken now.
-       They are kept apart so the live words can be replaced by the
-       tidier final version without eating what came before. */
-    let settled = "";
-    let partial = "";
-    dc.onmessage = (e) => {
-      let m: { type?: string; delta?: string; transcript?: string };
-      try {
-        m = JSON.parse(String(e.data));
-      } catch {
-        return;
-      }
-      if (!m.type?.includes("input_audio_transcription")) return;
-      if (m.type.endsWith(".delta") && m.delta) {
-        partial += m.delta;
-        onPhrase(settled, partial);
-      } else if (m.type.endsWith(".completed") && m.transcript) {
-        settled = (settled ? settled + " " : "") + m.transcript.trim();
-        partial = "";
-        onPhrase(settled, "");
-      }
-    };
-
-    for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/sdp" },
-      body: offer.sdp,
-    });
-    if (!res.ok) {
-      pc.close();
-      return null;
-    }
-    await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
-    return { pc, dc };
+    return new Ctor();
   } catch {
     return null;
   }
 }
 
-/** The format this browser will actually give us. */
+/** Start listening. onPhrase gets everything settled so far and the
+ *  words still being spoken, so the caller can show both. */
+function openLive(
+  onPhrase: (settled: string, partial: string) => void,
+): Live | null {
+  const rec = recogniser();
+  if (!rec) return null;
+
+  /* en-NG so amounts and names are heard the way they are said here.
+     A browser that does not have that voice falls back to its own
+     default rather than refusing. */
+  rec.lang = "en-NG";
+  /* Keep going through pauses. Without this it stops at the first
+     breath, which is what made the old browser path unusable. */
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  let settled = "";
+  let stopped = false;
+
+  rec.onresult = (e) => {
+    let partial = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      const said = r[0]?.transcript ?? "";
+      if (r.isFinal) settled += (settled ? " " : "") + said.trim();
+      else partial += said;
+    }
+    onPhrase(settled, partial.trim());
+  };
+
+  /* A recogniser that gives up mid-sentence - no-speech, a network
+     blip - must not take the dictation with it. The clip is still
+     recording underneath, so simply stop driving this one and let
+     the upload path produce the text. */
+  rec.onerror = () => {};
+
+  /* Chrome ends the session on its own after a long pause even with
+     continuous set. Restart until the caller actually stops, so a
+     thinking pause does not end the dictation. */
+  rec.onend = () => {
+    if (stopped) return;
+    try {
+      rec.start();
+    } catch {}
+  };
+
+  try {
+    rec.start();
+  } catch {
+    return null;
+  }
+
+  return {
+    rec,
+    /* onresult stays attached on the way out. Asking it to stop
+       makes it flush the words it is still holding, and dropping
+       the handler first threw away the end of every sentence. Only
+       the restart is cancelled. */
+    stop: () => {
+      stopped = true;
+      rec.onend = null;
+      try {
+        rec.stop();
+      } catch {}
+    },
+  };
+}
+
 function pickType() {
   const wanted = [
     "audio/webm;codecs=opus",
@@ -147,10 +176,7 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
 
   const cleanup = () => {
     if (live.current) {
-      try {
-        live.current.dc.close();
-        live.current.pc.close();
-      } catch {}
+      live.current.stop();
       live.current = null;
     }
     if (meter.current !== null) {
@@ -237,6 +263,14 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
         const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
         const heard = peak.current;
         const measured = reads.current > 20;
+
+        /* The recogniser flushes its last phrase a beat after being
+           asked to stop, and the recorder stops sooner than that.
+           Reading straight away cost the end of every sentence. */
+        if (live.current) {
+          live.current.stop();
+          await new Promise((r) => setTimeout(r, 400));
+        }
         const said = heardLive.current.trim();
         const usedLive = Boolean(live.current) && said.length > 0;
         cleanup();
@@ -251,15 +285,15 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
           onError("I didn't hear anything that time.");
           return;
         }
-        /* Live is a preview, not the record. Opening the connection
-           takes a moment, so the first words of a sentence can be
-           spoken before it is listening - and losing the opening of
-           someone's dictation is worse than making them wait a beat.
-           The whole clip is always transcribed at the end, and that
-           version replaces whatever the preview showed. */
+        /* The recogniser heard it, so that IS the dictation. It
+           listened to the whole thing from the first word, it is
+           already on screen, and uploading the clip to have it
+           rewritten only replaces good text with a guess - which is
+           what made this feel broken. Stop here. */
         if (usedLive) {
-          // Keep the preview on screen while the real one is fetched.
           onText(said);
+          setState("idle");
+          return;
         }
 
         setState("working");
@@ -317,11 +351,12 @@ export function useVoice(onText: (text: string) => void, onError: (why: string) 
       r.start(1000);
       setState("recording");
 
-      /* Then try for live words. The recorder above keeps running
-         either way, so if the live connection never opens or drops
-         mid-sentence, the clip is still there to fall back on. */
+      /* Then hand the listening to the browser. The recorder above
+         keeps running regardless, so a browser with no recogniser,
+         or one that gives up mid-sentence, still has the clip to
+         fall back on. */
       heardLive.current = "";
-      const l = await openLive(s, (done, saying) => {
+      const l = openLive((done, saying) => {
         const all = (done + (saying ? " " + saying : "")).trim();
         heardLive.current = done.trim();
         if (all) onText(all);

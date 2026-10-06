@@ -10,18 +10,24 @@ export function ExpenseRow({
   category,
   showDay = false,
   index = 0,
+  back,
 }: {
   expense: Expense;
   category?: Category;
   showDay?: boolean;
   index?: number;
+  /** Where the back arrow on the entry should return to. Carried in
+   *  the link because the month being viewed is in the URL, and
+   *  without it the way out always lands on the current month -
+   *  which, early in a month, is an empty page. */
+  back?: string;
 }) {
   const flagged = Boolean(e.entry.check);
   const income = e.amountNGN > 0;
 
   return (
     <Link
-      href={`/expenses/${e.id}`}
+      href={`/expenses/${e.id}${back ? `?back=${encodeURIComponent(back)}` : ""}`}
       className={cn(
         "hoverable flex items-center gap-3.5 px-5 py-3",
         "transition-[transform,background-color] duration-press ease-out-strong active:scale-[0.985]",

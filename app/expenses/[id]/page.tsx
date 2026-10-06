@@ -19,14 +19,32 @@ const HOW: Record<string, string> = {
   sample: "Sample data",
 };
 
+/* Where the back arrow goes. The list that linked here says so, so
+   that leaving an entry returns to the month and filter you were
+   looking at rather than to today. Anything that is not a plain
+   in-app path is ignored, so the parameter cannot be used to point
+   the arrow at another site. */
+function backTo(raw?: string) {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
+    return { href: "/expenses", label: "Expenses" };
+  }
+  return {
+    href: raw,
+    label: raw.startsWith("/expenses") ? "Expenses" : "Home",
+  };
+}
+
 export default async function ExpenseDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string }>;
 }) {
   await requirePin();
   const { showTime } = await getSettings();
   const { id } = await params;
+  const back = backTo((await searchParams).back);
   const found = await getExpense(id);
   if (!found) notFound();
   const { expense: e, category } = found;
@@ -35,11 +53,11 @@ export default async function ExpenseDetail({
     <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
       <Band tone="sage" pad="none" className="lg-card px-5 pt-4 pb-7 lg:p-6 lg:pb-8">
         <Link
-          href="/expenses"
+          href={back.href}
           className="inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
         >
           <ArrowLeft size={14} weight="bold" />
-          Expenses
+          {back.label}
         </Link>
 
         <div className="mt-5 flex justify-center">

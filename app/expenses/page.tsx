@@ -23,6 +23,20 @@ export default async function Expenses({
   const { category: categoryId, check, month } = await searchParams;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
 
+  /* The view to come back to from an entry: this month, this
+     filter. Rebuilt from the params rather than read off the
+     request, so it is the same string on the server and the client. */
+  const here =
+    "/expenses" +
+    (() => {
+      const q = new URLSearchParams();
+      if (month) q.set("month", month);
+      if (categoryId) q.set("category", categoryId);
+      if (check === "1") q.set("check", "1");
+      const s = q.toString();
+      return s ? `?${s}` : "";
+    })();
+
   const checkOnly = check === "1";
   const active = categoryId ? m.categoryById.get(categoryId) : undefined;
 
@@ -157,6 +171,7 @@ export default async function Expenses({
                     expense={e}
                     category={m.categoryById.get(e.categoryId)}
                     index={i++}
+                    back={here}
                   />
                 ))}
               </div>

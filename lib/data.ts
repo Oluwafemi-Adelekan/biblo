@@ -222,6 +222,16 @@ export const getMonth = cache(async (month?: string) => {
     categories,
     categoryById: byId,
     expenses: rows,
+    /* What "Recent" shows. The newest entries full stop, not the
+       newest entries inside this period - on the 1st of a month the
+       period is empty and a list headed "Recent" that says "nothing
+       yet" is answering a question nobody asked. Everything else on
+       the page stays scoped to the period. */
+    recent: [...all]
+      .sort((a, b) =>
+        (b.date + (b.time ?? "")).localeCompare(a.date + (a.time ?? "")),
+      )
+      .slice(0, 8),
     spent,
     earned,
     left,

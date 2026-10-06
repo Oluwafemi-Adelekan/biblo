@@ -42,6 +42,7 @@ import { feel, receivedSound, sentSound } from "@/lib/feedback";
 import type { Attachment, Message } from "@/lib/schema";
 import { cn } from "@/lib/cn";
 import { clearStaged, keepStaged, takeStaged } from "@/lib/staged";
+import { MAX_FILES, tooManyFiles } from "@/lib/limits";
 import { useVoice, WAVE_BARS } from "@/lib/voice";
 
 /* ============================================================
@@ -384,16 +385,27 @@ export function Chat({
      or shared in from another app. */
   function stage(picked: File[]) {
     if (picked.length === 0) return;
-    setFiles((p) => [
+
+    /* Say no at the door. The server has always refused an eleventh
+       file, but it only got the chance after the send, by which time
+       the picture had been chosen and the message written. */
+    setFiles((p) => {
+      const room = MAX_FILES - p.length;
+      if (picked.length > room) {
+        setError(tooManyFiles(p.length + picked.length));
+        if (room <= 0) return p;
+      }
+      return [
       ...p,
-      ...picked.map((file) => ({
+      ...picked.slice(0, Math.max(room, 0)).map((file) => ({
         file,
         // Images show as themselves, not as filenames.
         preview: file.type.startsWith("image/")
           ? URL.createObjectURL(file)
           : undefined,
       })),
-    ]);
+      ];
+    });
   }
 
   function take(e: React.ChangeEvent<HTMLInputElement>) {
@@ -631,23 +643,23 @@ export function Chat({
         {files.length > 0 ? (
           <ul className="scrollbar-none flex gap-2 overflow-x-auto px-4 pt-3">
             {files.map((f, i) => (
-              <li key={i} className="relative shrink-0">
+              <li key={i} className="relative h-16 shrink-0">
                 {f.preview ? (
                   <button
                     type="button"
                     aria-label={`View ${f.file.name}`}
                     onClick={() => setViewer(f.preview!)}
-                    className="block border border-rule"
+                    className="block h-full border border-rule"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={f.preview}
                       alt={f.file.name}
-                      className="size-16 object-cover"
+                      className="h-full w-16 object-cover"
                     />
                   </button>
                 ) : (
-                  <span className="flex h-16 w-44 items-center gap-2.5 border border-rule bg-bone-lift px-3">
+                  <span className="flex h-full w-44 items-center gap-2.5 border border-rule bg-bone-lift px-3">
                     <FileText size={20} className="shrink-0 text-ink/60" />
                     <span className="min-w-0">
                       <span className="block truncate text-meta text-ink">

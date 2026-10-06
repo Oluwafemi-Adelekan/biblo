@@ -10,6 +10,7 @@ import { getSettings, saveSettings, type Settings } from "@/lib/settings";
 import { viewerId } from "@/lib/viewer";
 import { getCategories } from "@/lib/data";
 import { parseEntry } from "@/lib/parse";
+import { MAX_FILES, MAX_FILE_BYTES, tooManyFiles } from "@/lib/limits";
 import {
   addCategory,
   addExpense,
@@ -710,19 +711,20 @@ const ALLOWED = [
   "application/csv",
 ];
 
-/** Supabase's own per-file ceiling. Nothing to do with Vercel now. */
-const MAX = 25 * 1024 * 1024;
 
 export async function prepareUploads(
   wanted: { name: string; type: string; size: number }[],
 ) {
-  if (wanted.length === 0 || wanted.length > 10) {
-    return { ok: false as const, error: "Send between one and ten files." };
+  if (wanted.length === 0) {
+    return { ok: false as const, error: "Send at least one file." };
+  }
+  if (wanted.length > MAX_FILES) {
+    return { ok: false as const, error: tooManyFiles(wanted.length) };
   }
 
   const targets = [];
   for (const f of wanted) {
-    if (f.size > MAX) {
+    if (f.size > MAX_FILE_BYTES) {
       return {
         ok: false as const,
         error: `${f.name} is ${(f.size / 1_048_576).toFixed(1)}MB. The limit is 25MB.`,

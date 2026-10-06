@@ -154,9 +154,9 @@ export default async function Home({
             <CaretRight size={12} weight="bold" />
           </Link>
         </div>
-        {m.expenses.length === 0 ? (
+        {m.recent.length === 0 ? (
           <div className="border-y border-rule bg-bone px-5 py-8 text-center">
-            <p className="text-title">Nothing yet this month.</p>
+            <p className="text-title">Nothing filed yet.</p>
             <Link
               href="/chat"
               className="mt-4 inline-flex bg-ember px-5 py-3 text-label uppercase text-ink transition-transform duration-press ease-out-strong active:scale-[0.97]"
@@ -166,13 +166,14 @@ export default async function Home({
           </div>
         ) : (
           <div className="divide-y divide-rule border-y border-rule bg-bone">
-            {m.expenses.slice(0, 4).map((e, i) => (
+            {m.recent.slice(0, 4).map((e, i) => (
               <ExpenseRow
                 key={e.id}
                 expense={e}
                 category={m.categoryById.get(e.categoryId)}
                 showDay
                 index={i}
+                back={month ? `/?month=${month}` : "/"}
               />
             ))}
           </div>
