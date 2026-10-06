@@ -3,7 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Wordmark } from "@/components/ui/Text";
-import { readShare, type LedgerDoc, type PeriodDoc } from "@/lib/share";
+import {
+  readShare,
+  type LedgerDoc,
+  type PeriodDoc,
+  type SharedPerson,
+} from "@/lib/share";
 import { naira, dayLabel } from "@/lib/format";
 
 /* A page of someone's books, open to anyone holding the link.
@@ -147,26 +152,32 @@ function Ledger({ doc }: { doc: LedgerDoc }) {
         Every line, {doc.lines.length} of them
       </h2>
       <ul className="mt-3 divide-y divide-rule border-y border-rule">
-        {doc.lines.map((l, i) => (
-          <li key={i} className="flex items-baseline justify-between gap-4 py-2.5">
-            <span className="min-w-0">
-              <span className="text-meta text-ink">{l.label}</span>
-              <span className="mt-0.5 block text-meta text-ink/50">
-                {l.note ? l.note : null}
-                {l.note && l.who?.length ? " · " : null}
-                {l.who?.length ? l.who.join(", ") : l.note ? null : "everyone"}
-              </span>
-            </span>
-            <span className="tnum shrink-0 text-right text-meta text-ink">
-              {naira(l.amount, { decimals: 0 })}
-              {l.original ? (
-                <span className="block text-ink/50">
-                  {l.original.amount.toLocaleString()} {l.original.currency}
+        {doc.lines.map((l, i) => {
+          const split = describeSplit(l.who, doc.people);
+          return (
+            <li key={i} className="flex items-baseline justify-between gap-4 py-2.5">
+              <span className="min-w-0">
+                <span className="text-meta text-ink">{l.label}</span>
+                <span className="mt-0.5 block text-meta text-ink/50">
+                  {l.note ? `${l.note} · ` : ""}
+                  {split.who}
                 </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
+              </span>
+              <span className="tnum shrink-0 text-right text-meta text-ink">
+                {naira(l.amount, { decimals: 0 })}
+                <span className="block text-ink/50">
+                  {l.original
+                    ? `${l.original.amount.toLocaleString()} ${l.original.currency}`
+                    : null}
+                  {l.original && split.heads > 1 ? " · " : null}
+                  {split.heads > 1
+                    ? `${naira(l.amount / split.heads, { decimals: 0 })} each`
+                    : null}
+                </span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       {doc.open?.length ? (
@@ -193,6 +204,34 @@ function Ledger({ doc }: { doc: LedgerDoc }) {
     </>
   );
 }
+
+/* Who carried a line, said the way a person would say it out loud.
+ *  An empty list means everybody. Past a handful of names it is
+ *  shorter to say who was left out than who was in, and the count
+ *  comes first either way, because the question a reader is actually
+ *  asking is how many ways this was cut. */
+function describeSplit(who: string[] | undefined, people: SharedPerson[]) {
+  const everyone = people.length;
+  const heads = who?.length ? who.length : everyone;
+
+  if (!who?.length) return { heads, who: `split ${everyone} ways, everyone` };
+  if (heads === 1) return { heads, who: `${who[0]} alone` };
+  if (heads === everyone) return { heads, who: `split ${everyone} ways, everyone` };
+
+  const out = people.map((p) => p.name).filter((n) => !who.includes(n));
+  return {
+    heads,
+    who:
+      out.length <= heads
+        ? `split ${heads} ways, everyone except ${list(out)}`
+        : `split ${heads} ways, ${list(who)}`,
+  };
+}
+
+const list = (names: string[]) =>
+  names.length <= 1
+    ? (names[0] ?? "")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 function Bar({
   value,
