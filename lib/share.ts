@@ -50,6 +50,9 @@ export type LedgerDoc = {
   lines: SharedLine[];
   totalIn: number;
   totalSpent: number;
+  /** Credited to every person for money the pot did not spend, so a
+   *  single person's lines add up to what they actually used. */
+  creditEach?: number;
   /** Anything the arithmetic could not place, said plainly. */
   open?: string[];
 };

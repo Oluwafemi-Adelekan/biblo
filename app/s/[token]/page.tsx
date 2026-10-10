@@ -8,6 +8,7 @@ import {
   type LedgerDoc,
   type PeriodDoc,
   type SharedPerson,
+  type SharedLine,
 } from "@/lib/share";
 import { naira, dayLabel } from "@/lib/format";
 
@@ -32,11 +33,25 @@ export async function generateMetadata({
 
 export default async function Shared({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ who?: string }>;
 }) {
-  const share = await readShare((await params).token);
+  const { token } = await params;
+  const share = await readShare(token);
   if (!share) notFound();
+
+  /* One person's own page. The name is in the URL so it can be sent
+     to them directly - the whole point is that someone who is not
+     in this group's accounting should be able to open a link and
+     see their own column, not scroll a hundred lines looking for
+     themselves. An unknown name just shows everybody. */
+  const asked = (await searchParams).who;
+  const only =
+    share.doc.kind === "ledger"
+      ? share.doc.people.find((p) => p.name === asked)
+      : undefined;
 
   return (
     <div className="min-h-dvh bg-sage-dim py-6 sm:py-10">
@@ -63,7 +78,11 @@ export default async function Shared({
         ) : null}
 
         {share.doc.kind === "ledger" ? (
-          <Ledger doc={share.doc} />
+          only ? (
+            <Person doc={share.doc} person={only} token={token} />
+          ) : (
+            <Ledger doc={share.doc} token={token} />
+          )
         ) : (
           <Period doc={share.doc} />
         )}
@@ -87,7 +106,7 @@ export default async function Shared({
 
 /* --- a pot several people paid into -------------------------- */
 
-function Ledger({ doc }: { doc: LedgerDoc }) {
+function Ledger({ doc, token }: { doc: LedgerDoc; token: string }) {
   const gap = doc.totalIn - doc.totalSpent;
   const widest = Math.max(
     1,
@@ -117,7 +136,10 @@ function Ledger({ doc }: { doc: LedgerDoc }) {
       <ul className="mt-4 flex flex-col gap-4">
         {doc.people.map((p) => (
           <li key={p.name}>
-            <div className="flex items-baseline justify-between gap-3">
+            <Link
+              href={`/s/${token}?who=${encodeURIComponent(p.name)}`}
+              className="flex items-baseline justify-between gap-3 hover:underline"
+            >
               <span className="text-body font-medium text-ink">{p.name}</span>
               <span
                 className={`tnum text-body font-semibold ${
@@ -126,7 +148,7 @@ function Ledger({ doc }: { doc: LedgerDoc }) {
               >
                 {naira(p.balance, { sign: true, decimals: 0 })}
               </span>
-            </div>
+            </Link>
             {/* Paid in above, used below, on one shared scale. */}
             <div className="mt-1.5 flex flex-col gap-0.5">
               <Bar value={p.paidIn} of={widest} tone="bg-moss" />
@@ -139,6 +161,9 @@ function Ledger({ doc }: { doc: LedgerDoc }) {
           </li>
         ))}
       </ul>
+      <p className="mt-3 text-meta text-ink/55">
+        Tap a name for only the lines that touch them.
+      </p>
       <p className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-meta text-ink/55">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-3 bg-moss" aria-hidden /> paid in
@@ -249,6 +274,135 @@ function Bar({
         style={{ width: `${Math.max(1, (value / of) * 100)}%` }}
       />
     </span>
+  );
+}
+
+/* --- one person's own column -------------------------------- */
+
+function Person({
+  doc,
+  person,
+  token,
+}: {
+  doc: LedgerDoc;
+  person: SharedPerson;
+  token: string;
+}) {
+  const mine = doc.lines
+    .map((l) => {
+      const heads = l.who?.length ? l.who.length : doc.people.length;
+      const on = !l.who?.length || l.who.includes(person.name);
+      return on ? { line: l, heads, share: l.amount / heads } : null;
+    })
+    .filter((x): x is { line: SharedLine; heads: number; share: number } => x !== null);
+
+  const spent = mine.reduce((s, m) => s + m.share, 0);
+  const credit = doc.creditEach ?? 0;
+
+  /* Grouped by where the money went, in the order the trip
+     happened, because a hundred lines in one list is the thing
+     this page exists to avoid. */
+  const places: { place: string; rows: typeof mine }[] = [];
+  for (const m of mine) {
+    const place = m.line.note ?? "Other";
+    const last = places[places.length - 1];
+    if (last && last.place === place) last.rows.push(m);
+    else places.push({ place, rows: [m] });
+  }
+
+  return (
+    <>
+      <Link
+        href={`/s/${token}`}
+        className="mt-6 inline-block text-meta font-medium text-ink underline underline-offset-4"
+      >
+        ← Everyone
+      </Link>
+
+      <h2 className="mt-5 text-title font-semibold text-ink">{person.name}</h2>
+
+      <div className="mt-5 flex flex-wrap divide-x divide-rule border-y border-rule">
+        {[
+          ["Paid in", person.paidIn],
+          ["Used", -person.used],
+          [person.balance < 0 ? "Owes" : "Owed back", -Math.abs(person.balance)],
+        ].map(([label, v]) => (
+          <div key={label as string} className="min-w-[8rem] flex-1 px-4 py-4">
+            <p className="text-label uppercase text-ink/50">{label}</p>
+            <p className="tnum mt-1 text-title font-semibold text-ink">
+              {naira(Math.abs(v as number), { decimals: 0 })}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 max-w-[52ch] text-meta leading-relaxed text-ink/70">
+        {mine.length} lines touch {person.name}. Where a line was split, the
+        figure on the right is {person.name}&rsquo;s share of it, not the whole
+        thing.
+      </p>
+
+      {places.map(({ place, rows }, i) => (
+        <section key={place + i} className="mt-7">
+          <h3 className="text-label uppercase text-ink/50">{place}</h3>
+          <ul className="mt-2 divide-y divide-rule border-y border-rule">
+            {rows.map(({ line, heads, share }, j) => (
+              <li
+                key={j}
+                className="flex items-baseline justify-between gap-4 py-2.5"
+              >
+                <span className="min-w-0">
+                  <span className="text-meta text-ink">{line.label}</span>
+                  <span className="mt-0.5 block text-meta text-ink/50">
+                    {heads > 1
+                      ? `${naira(line.amount, { decimals: 0 })} split ${heads} ways`
+                      : "theirs alone"}
+                  </span>
+                </span>
+                <span className="tnum shrink-0 text-meta font-medium text-ink">
+                  {naira(share, { decimals: 0 })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      <div className="mt-8 border-t border-rule pt-4">
+        <Row label="Everything above" value={spent} />
+        {credit ? (
+          <Row label="Share of the cash left over" value={-credit} />
+        ) : null}
+        <Row label="Used" value={person.used} strong />
+        <Row label="Paid in" value={-person.paidIn} />
+        <Row
+          label={person.balance < 0 ? "Still owes" : "Owed back"}
+          value={Math.abs(person.balance)}
+          strong
+        />
+      </div>
+    </>
+  );
+}
+
+function Row({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
+  return (
+    <p
+      className={`flex items-baseline justify-between gap-4 py-1.5 ${
+        strong ? "text-body font-semibold text-ink" : "text-meta text-ink/70"
+      }`}
+    >
+      <span>{label}</span>
+      <span className="tnum">{naira(value, { decimals: 0 })}</span>
+    </p>
   );
 }
 
