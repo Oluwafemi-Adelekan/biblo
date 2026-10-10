@@ -60,6 +60,7 @@ export type LedgerDoc = {
   unclaimed?: {
     group: string;
     items: {
+      fr?: string;
       name: string;
       qty: number;
       unit: number;
