@@ -206,59 +206,14 @@ function Ledger({ doc, token }: { doc: LedgerDoc; token: string }) {
         })}
       </ul>
 
-      {doc.unclaimed?.length ? (
-        <>
-          <h2 className="mt-10 text-label uppercase text-ink/50">
-            Still unclaimed on the day 4 receipt
-          </h2>
-          <p className="mt-2 text-meta text-ink/60">
-            Only what is still left. Claim yours and it comes off everyone
-            else&rsquo;s share.
-          </p>
-          {doc.unclaimed
-            .filter((g) => g.items.some((i) => i.left > 0))
-            .map((g) => (
-              <section key={g.group} className="mt-6">
-                <h3 className="text-label uppercase text-ink/50">{g.group}</h3>
-                <ul className="mt-2 divide-y divide-rule border-y border-rule">
-                  {g.items.filter((it) => it.left > 0).map((it) => (
-                    <li key={it.name} className="flex items-baseline justify-between gap-4 py-2.5">
-                      <span className="min-w-0">
-                        <span className="text-meta text-ink">{it.fr ?? it.name}</span>
-                        <span className="mt-0.5 block text-meta text-ink/60">
-                          {it.fr ? `${it.name} · ` : ""}
-                          {it.qty} bought at {it.unit.toLocaleString()} CFA
-                        </span>
-                        <span className="mt-0.5 block text-meta text-ink/50">
-                          {it.claimed.length ? `claimed: ${it.claimed.join(", ")}` : "none claimed"}
-                        </span>
-                      </span>
-                      <span
-                        className={`tnum shrink-0 text-right text-meta ${
-                          "font-semibold text-ember"
-                        }`}
-                      >
-                        {it.left} left
-                        <span className="block font-normal text-ink/50">
-                          {(it.left * it.unit).toLocaleString()} CFA
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-        </>
-      ) : null}
-
       {doc.open?.length ? (
         <>
           <h2 className="mt-10 text-label uppercase text-ink/50">
             Not accounted for
           </h2>
-          <p className="mt-2 text-meta text-ink/60">
-            In the recording, but not yet splittable. None of it is in the
-            figures above.
+          {doc.unclaimed?.length ? <Unclaimed groups={doc.unclaimed} /> : null}
+          <p className="mt-8 text-meta text-ink/60">
+            And two notes on the figures above.
           </p>
           <ol className="mt-3 flex flex-col gap-2.5">
             {doc.open.map((o, i) => (
@@ -303,6 +258,68 @@ const list = (names: string[]) =>
   names.length <= 1
     ? (names[0] ?? "")
     : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/* What is still left on a receipt nobody has finished claiming.
+ *  A table rather than prose, because the reader is matching lines
+ *  against a paper receipt in French: the printed name comes first. */
+function Unclaimed({ groups }: { groups: NonNullable<LedgerDoc["unclaimed"]> }) {
+  const shown = groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.left > 0) }))
+    .filter((g) => g.items.length);
+  const total = shown
+    .flatMap((g) => g.items)
+    .reduce((s, i) => s + i.left * i.unit, 0);
+
+  return (
+    <div className="mt-3">
+      <p className="text-meta text-ink/60">
+        From the Super U receipt of 4 October, still unclaimed:{" "}
+        <span className="tnum font-semibold text-ink">
+          {total.toLocaleString()} CFA
+        </span>
+        , split ten ways until someone claims it.
+      </p>
+      {shown.map((g) => (
+        <section key={g.group} className="mt-5">
+          <h3 className="text-label uppercase text-ink/50">{g.group}</h3>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[34rem] border-y border-rule text-left text-meta">
+              <thead>
+                <tr className="text-label uppercase text-ink/45">
+                  <th className="py-2 pr-3 font-medium">On the receipt</th>
+                  <th className="py-2 pr-3 font-medium">English</th>
+                  <th className="py-2 pr-3 text-right font-medium">Bought</th>
+                  <th className="py-2 pr-3 font-medium">Claimed</th>
+                  <th className="py-2 text-right font-medium">Left</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule border-t border-rule">
+                {g.items.map((it) => (
+                  <tr key={it.name} className="align-top">
+                    <td className="py-2.5 pr-3 text-ink">{it.fr ?? it.name}</td>
+                    <td className="py-2.5 pr-3 text-ink/60">{it.name}</td>
+                    <td className="tnum py-2.5 pr-3 text-right text-ink/70">
+                      {it.qty} × {it.unit.toLocaleString()}
+                    </td>
+                    <td className="py-2.5 pr-3 text-ink/60">
+                      {it.claimed.length ? it.claimed.join(", ") : "none"}
+                    </td>
+                    <td className="tnum py-2.5 text-right">
+                      <span className="font-semibold text-ember">{it.left}</span>
+                      <span className="block text-ink/50">
+                        {(it.left * it.unit).toLocaleString()}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 function Bar({
   value,
