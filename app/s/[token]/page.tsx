@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowLeft } from "@phosphor-icons/react/ssr";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Wordmark } from "@/components/ui/Text";
@@ -314,9 +315,10 @@ function Person({
     <>
       <Link
         href={`/s/${token}`}
-        className="mt-6 inline-block text-meta font-medium text-ink underline underline-offset-4"
+        className="mt-6 inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
       >
-        ← Everyone
+        <ArrowLeft size={14} weight="bold" />
+        Everyone
       </Link>
 
       <h2 className="mt-5 text-title font-semibold text-ink">{person.name}</h2>
@@ -335,12 +337,6 @@ function Person({
           </div>
         ))}
       </div>
-
-      <p className="mt-4 max-w-[52ch] text-meta leading-relaxed text-ink/70">
-        {mine.length} lines touch {person.name}. Where a line was split, the
-        figure on the right is {person.name}&rsquo;s share of it, not the whole
-        thing.
-      </p>
 
       {places.map(({ place, rows }, i) => (
         <section key={place + i} className="mt-7">
