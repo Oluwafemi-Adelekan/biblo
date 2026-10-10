@@ -283,7 +283,15 @@ function Unclaimed({ groups }: { groups: NonNullable<LedgerDoc["unclaimed"]> }) 
         <section key={g.group} className="mt-5">
           <h3 className="text-label uppercase text-ink/50">{g.group}</h3>
           <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[34rem] border-y border-rule text-left text-meta">
+            <table className="w-full min-w-[34rem] table-fixed border-y border-rule text-left text-meta">
+              {/* Fixed widths so every group's columns line up with the next. */}
+              <colgroup>
+                <col className="w-[32%]" />
+                <col className="w-[22%]" />
+                <col className="w-[14%]" />
+                <col className="w-[22%]" />
+                <col className="w-[10%]" />
+              </colgroup>
               <thead>
                 <tr className="text-label uppercase text-ink/45">
                   <th className="py-2 pr-3 font-medium">On the receipt</th>
