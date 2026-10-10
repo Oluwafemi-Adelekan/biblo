@@ -55,6 +55,18 @@ export type LedgerDoc = {
   creditEach?: number;
   /** Anything the arithmetic could not place, said plainly. */
   open?: string[];
+  /** A receipt nobody has finished claiming, by group: what is on
+   *  it, who has said what is theirs, and how many are left. */
+  unclaimed?: {
+    group: string;
+    items: {
+      name: string;
+      qty: number;
+      unit: number;
+      claimed: string[];
+      left: number;
+    }[];
+  }[];
 };
 
 /** A stretch of one person's own books. */

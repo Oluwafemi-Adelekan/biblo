@@ -206,6 +206,54 @@ function Ledger({ doc, token }: { doc: LedgerDoc; token: string }) {
         })}
       </ul>
 
+      {doc.unclaimed?.length ? (
+        <>
+          <h2 className="mt-10 text-label uppercase text-ink/50">
+            Still unclaimed on the day 4 receipt
+          </h2>
+          <p className="mt-2 text-meta text-ink/60">
+            Each line shows what was bought, who has claimed it, and what is
+            left. What is left is split ten ways until someone claims it.
+          </p>
+          {doc.unclaimed
+            .filter((g) => g.items.some((i) => i.left > 0))
+            .map((g) => (
+              <section key={g.group} className="mt-6">
+                <h3 className="text-label uppercase text-ink/50">{g.group}</h3>
+                <ul className="mt-2 divide-y divide-rule border-y border-rule">
+                  {g.items.map((it) => (
+                    <li key={it.name} className="flex items-baseline justify-between gap-4 py-2.5">
+                      <span className="min-w-0">
+                        <span className="text-meta text-ink">
+                          {it.name}
+                          <span className="text-ink/50">
+                            {" "}· {it.qty} at {it.unit.toLocaleString()} CFA
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block text-meta text-ink/50">
+                          {it.claimed.length ? `claimed: ${it.claimed.join(", ")}` : "nobody has claimed this"}
+                        </span>
+                      </span>
+                      <span
+                        className={`tnum shrink-0 text-right text-meta ${
+                          it.left > 0 ? "font-semibold text-ember" : "text-ink/45"
+                        }`}
+                      >
+                        {it.left > 0 ? `${it.left} left` : "done"}
+                        {it.left > 0 ? (
+                          <span className="block font-normal text-ink/50">
+                            {(it.left * it.unit).toLocaleString()} CFA
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+        </>
+      ) : null}
+
       {doc.open?.length ? (
         <>
           <h2 className="mt-10 text-label uppercase text-ink/50">
