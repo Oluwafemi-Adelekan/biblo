@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -109,6 +108,22 @@ export function Chat({
      UTC and the phone in Lagos time, so a message sent just after
      midnight would sit under a different day on each and the page
      would disagree with itself. */
+  /* How far above the newest message the reader has scrolled. Past
+     a screen's worth, a button appears to take them back down. */
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    const scroller = endRef.current?.closest("main");
+    if (!scroller) return;
+    const check = () =>
+      setAway(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 400);
+    check();
+    scroller.addEventListener("scroll", check, { passive: true });
+    return () => scroller.removeEventListener("scroll", check);
+  }, []);
+  const toLatest = () => {
+    const scroller = endRef.current?.closest("main");
+    scroller?.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  };
   const inBrowser = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -600,32 +615,36 @@ export function Chat({
         {thread.length === 0 ? (
           <Empty onPick={(t) => { applyText(t); fieldRef.current?.focus(); }} />
         ) : (
-          thread.map((m, i) =>
-            // The open question lives in the composer card, not here.
-            m.id === openAsk?.id ? null : (
-              <Fragment key={m.id}>
-              {inBrowser && (i === 0 || dayKey(thread[i - 1].at) !== dayKey(m.at)) ? (
-                <DayDivider at={m.at} />
-              ) : null}
-              <Bubble
-                key={m.id}
-                message={m}
-                sending={m.id === PENDING_ID}
-                progress={m.id === PENDING_ID ? uploaded : null}
-                onView={setViewer}
-                cards={(m.meta?.expenseIds?.length
-                  ? m.meta.expenseIds
-                  : m.expenseId
-                    ? [m.expenseId]
-                    : []
-                )
-                  .filter((id) => expenses[id])
-                  .map((id) => ({ id, e: expenses[id] }))}
-                reveal={m.id === revealId}
-              />
-              </Fragment>
-            ),
-          )
+          /* One block per day, so each day's sticky pill lets go when
+             its day scrolls away instead of staying pinned underneath
+             the next. Grouped in the browser only, for the same
+             time-zone reason the pills are. */
+          (inBrowser ? byDay(thread) : [{ key: "all", at: "", items: thread }]).map((day) => (
+            <section key={day.key} className="space-y-3">
+              {day.at ? <DayDivider at={day.at} /> : null}
+              {day.items.map((m) =>
+                // The open question lives in the composer card, not here.
+                m.id === openAsk?.id ? null : (
+                  <Bubble
+                    key={m.id}
+                    message={m}
+                    sending={m.id === PENDING_ID}
+                    progress={m.id === PENDING_ID ? uploaded : null}
+                    onView={setViewer}
+                    cards={(m.meta?.expenseIds?.length
+                      ? m.meta.expenseIds
+                      : m.expenseId
+                        ? [m.expenseId]
+                        : []
+                    )
+                      .filter((id) => expenses[id])
+                      .map((id) => ({ id, e: expenses[id] }))}
+                    reveal={m.id === revealId}
+                  />
+                ),
+              )}
+            </section>
+          ))
         )}
         {oldestPending ? (
           <ThinkingLine
@@ -645,6 +664,16 @@ export function Chat({
           veil that blurs whatever scrolls beneath it. Phones stay
           flush - thumbs live at the bottom edge. */}
       <div className="composer-veil sticky bottom-0 lg:pb-5 lg:pt-6">
+      {away ? (
+        <button
+          type="button"
+          onClick={toLatest}
+          aria-label="Jump to the latest message"
+          className="absolute bottom-full right-4 z-[2] mb-3 flex size-11 items-center justify-center rounded-full bg-bone text-ink shadow-[0_2px_10px_oklch(0.2_0.02_118/0.18)] ring-1 ring-inset ring-ink/10 transition-transform duration-press ease-out-strong active:scale-[0.94] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]"
+        >
+          <CaretDown size={20} weight="bold" />
+        </button>
+      ) : null}
       <div className="lg-card relative z-[1] border-t border-rule bg-bone lg:border-t-0">
         {openAsk ? <ApprovalCard key={openAsk.id} m={openAsk} /> : null}
 
@@ -1829,6 +1858,17 @@ function Empty({ onPick }: { onPick: (t: string) => void }) {
    WhatsApp does it: Today, Yesterday, a weekday for this week, then
    the date. Local time, because that is the day the person lived. */
 
+function byDay(thread: Message[]) {
+  const days: { key: string; at: string; items: Message[] }[] = [];
+  for (const m of thread) {
+    const k = dayKey(m.at);
+    const last = days[days.length - 1];
+    if (last && last.key === k) last.items.push(m);
+    else days.push({ key: k, at: m.at, items: [m] });
+  }
+  return days;
+}
+
 function dayKey(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -1851,8 +1891,16 @@ function dayName(iso: string) {
 
 function DayDivider({ at }: { at: string }) {
   return (
-    <div className="flex justify-center py-1" role="separator" aria-label={dayName(at)}>
-      <span className="bg-bone px-3 py-1 text-label uppercase text-ink/55 ring-1 ring-inset ring-ink/8">
+    /* Sticky, the way WhatsApp holds the date while you scroll a day.
+       They are siblings, so the next day's pill slides up over this
+       one and takes its place. Offsets clear the phone's brand band
+       and the desktop header. */
+    <div
+      className="pointer-events-none sticky top-[3.75rem] z-[5] flex justify-center py-1 lg:top-[4.5rem]"
+      role="separator"
+      aria-label={dayName(at)}
+    >
+      <span className="bg-bone px-3 py-1 text-label uppercase text-ink/55 shadow-[0_1px_2px_oklch(0.2_0.02_118/0.08)] ring-1 ring-inset ring-ink/8">
         {dayName(at)}
       </span>
     </div>
