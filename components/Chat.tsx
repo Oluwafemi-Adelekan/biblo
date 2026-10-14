@@ -675,14 +675,19 @@ export function Chat({
           flush - thumbs live at the bottom edge. */}
       <div className="composer-veil sticky bottom-0 lg:pb-5 lg:pt-6">
       {away ? (
+        /* Centred, clear of the send button at the right. The wrapper
+           does the centring so the button's own entrance can use
+           transform freely. */
+        <div className="pointer-events-none absolute inset-x-0 bottom-full z-[2] mb-3 flex justify-center">
         <button
           type="button"
           onClick={toLatest}
           aria-label="Jump to the latest message"
-          className="absolute bottom-full right-4 z-[2] mb-3 flex size-11 items-center justify-center rounded-full bg-bone text-ink shadow-[0_2px_10px_oklch(0.2_0.02_118/0.18)] ring-1 ring-inset ring-ink/10 transition-transform duration-press ease-out-strong active:scale-[0.94] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]"
+          className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-bone text-ink shadow-[0_2px_10px_oklch(0.2_0.02_118/0.18)] ring-1 ring-inset ring-ink/10 transition-transform duration-press ease-out-strong active:scale-[0.94] motion-safe:animate-[rise_200ms_var(--ease-out-strong)]"
         >
           <CaretDown size={20} weight="bold" />
         </button>
+        </div>
       ) : null}
       <div className="lg-card relative z-[1] border-t border-rule bg-bone lg:border-t-0">
         {openAsk ? <ApprovalCard key={openAsk.id} m={openAsk} /> : null}
