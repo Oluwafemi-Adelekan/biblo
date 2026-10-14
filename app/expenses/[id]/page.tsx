@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getSettings } from "@/lib/settings";
 import { requirePin } from "@/lib/pin";
 import Link from "next/link";
+import { HeaderPortal } from "@/components/HeaderPortal";
 import { ArrowLeft, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { Band, Row, Rule } from "@/components/ui/Band";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
@@ -52,13 +53,22 @@ export default async function ExpenseDetail({
   return (
     <div className="pb-6 lg:space-y-4 lg:pb-12 lg:pt-4">
       <Band tone="sage" pad="none" className="lg-card px-5 pt-4 pb-7 lg:p-6 lg:pb-8">
-        <Link
-          href={back.href}
-          className="inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
-        >
-          <ArrowLeft size={14} weight="bold" />
-          {back.label}
-        </Link>
+        {/* The way back sits beside the title, as an icon, the same
+            as every other page. On desktop it rides the header. */}
+        <HeaderPortal slot="header-lead">
+          <span className="flex items-center gap-1.5">
+            <Link
+              href={back.href}
+              aria-label={`Back to ${back.label}`}
+              className="-ml-2 flex size-9 items-center justify-center text-ink/70 transition-colors hover:text-ink"
+            >
+              <ArrowLeft size={18} weight="bold" />
+            </Link>
+            <Label as="h1" tone="dim" className="lg:text-title lg:normal-case lg:tracking-normal lg:text-ink">
+              {category?.name ?? "Expense"}
+            </Label>
+          </span>
+        </HeaderPortal>
 
         <div className="mt-5 flex justify-center">
           <span className="flex size-12 items-center justify-center bg-moss text-bone">

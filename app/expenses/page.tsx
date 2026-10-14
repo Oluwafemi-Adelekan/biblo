@@ -86,9 +86,22 @@ export default async function Expenses({
         pad="none"
         className="sticky top-0 z-10 flex items-center justify-between bg-sage px-5 pt-6 pb-3 lg:hidden"
       >
-        <Label as="h1" tone="dim">
-          {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
-        </Label>
+        <HeaderPortal slot="header-lead">
+          <span className="flex items-center gap-1.5">
+            {back ? (
+              <Link
+                href={back.href}
+                aria-label={`Back to ${back.label}`}
+                className="-ml-2 flex size-9 items-center justify-center text-ink/70 transition-colors hover:text-ink"
+              >
+                <ArrowLeft size={18} weight="bold" />
+              </Link>
+            ) : null}
+            <Label as="h1" tone="dim" className="lg:text-title lg:normal-case lg:tracking-normal lg:text-ink">
+              {checkOnly ? "Needs a look" : active ? active.name : monthLabel(m.month)}
+            </Label>
+          </span>
+        </HeaderPortal>
         <span className="flex items-center gap-1">
         <HeaderPortal>
           <ExportMenu
@@ -108,15 +121,6 @@ export default async function Expenses({
       </Band>
 
       <Band tone="sage" pad="none" className="lg-card px-5 pb-5 lg:p-6">
-        {back ? (
-          <Link
-            href={back.href}
-            className="mb-3 inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
-          >
-            <ArrowLeft size={14} weight="bold" />
-            {back.label}
-          </Link>
-        ) : null}
         <div>
           {incoming ? (
             <MaskIncome className="text-headline text-ink/35">

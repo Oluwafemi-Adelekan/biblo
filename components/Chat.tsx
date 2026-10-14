@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -27,6 +28,7 @@ import {
   Stop,
   UploadSimple,
   X,
+  ArrowRight,
 } from "@phosphor-icons/react";
 import { dayLabel, naira } from "@/lib/format";
 import { Sheet } from "@/components/ui/Sheet";
@@ -1327,7 +1329,7 @@ function Reply({
           {chunk}
         </a>
       ) : (
-        <span key={i}>{chunk}</span>
+        <span key={i}>{arrowed(chunk)}</span>
       ),
     );
   });
@@ -1500,7 +1502,7 @@ function ApprovalCard({ m }: { m: Message }) {
               {detailOpen ? (
                 <ul className="mt-1.5 space-y-1 border-l-2 border-rule pl-2.5 text-meta text-ink/70 motion-safe:animate-[rise_160ms_var(--ease-out-strong)]">
                   {lines.map((l) => (
-                    <li key={l}>{l}</li>
+                    <li key={l}>{arrowed(l)}</li>
                   ))}
                 </ul>
               ) : null}
@@ -1929,4 +1931,24 @@ function DayDivider({ at }: { at: string }) {
       </span>
     </div>
   );
+}
+
+/* "groceries -> Food" is written with a text arrow in the messages
+   the app stores, old ones included. Drawn, it becomes the icon, so
+   the thread uses the same arrows as the rest of the interface. */
+function arrowed(text: string): React.ReactNode {
+  if (!text.includes("→")) return text;
+  const parts = text.split(/\s*→\s*/);
+  return parts.map((p, i) => (
+    <Fragment key={i}>
+      {i > 0 ? (
+        <ArrowRight
+          weight="bold"
+          aria-label="to"
+          className="mx-1 inline-block size-[0.85em] align-[-0.08em] opacity-60"
+        />
+      ) : null}
+      {p}
+    </Fragment>
+  ));
 }

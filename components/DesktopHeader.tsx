@@ -29,7 +29,11 @@ export function DesktopHeader() {
 
   return (
     <header className="sticky top-0 z-30 hidden h-[3.75rem] w-full shrink-0 items-center justify-between border-b border-rule bg-bone px-8 lg:flex">
-      <p className="text-title text-ink">{title}</p>
+      <span className="flex items-center gap-2">
+        <span id="header-lead" className="flex items-center gap-2 empty:hidden" />
+        {/* Hidden when a page has put its own title in the lead slot. */}
+        <p className="text-title text-ink [#header-lead:not(:empty)+&]:hidden">{title}</p>
+      </span>
       <span id="header-tools" className="flex items-center gap-1" />
     </header>
   );

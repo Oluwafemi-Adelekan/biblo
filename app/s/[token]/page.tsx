@@ -383,15 +383,16 @@ function Person({
 
   return (
     <>
-      <Link
-        href={`/s/${token}`}
-        className="mt-6 inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
-      >
-        <ArrowLeft size={14} weight="bold" />
-        Everyone
-      </Link>
-
-      <h2 className="mt-5 text-title font-semibold text-ink">{person.name}</h2>
+      <div className="mt-6 flex items-center gap-1.5">
+        <Link
+          href={`/s/${token}`}
+          aria-label="Back to everyone"
+          className="-ml-2 flex size-9 items-center justify-center text-ink/70 transition-colors hover:text-ink"
+        >
+          <ArrowLeft size={18} weight="bold" />
+        </Link>
+        <h2 className="text-title font-semibold text-ink">{person.name}</h2>
+      </div>
 
       <div className="mt-5 flex flex-wrap divide-x divide-rule border-y border-rule">
         {[
