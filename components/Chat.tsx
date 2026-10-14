@@ -1453,7 +1453,9 @@ function ApprovalCard({ m }: { m: Message }) {
     });
   };
 
-  const p = ap.proposal as {
+  const p = ap.proposal as unknown as {
+    budget?: { month: string; income?: number; caps?: Record<string, number> };
+    newCategories?: { name: string; cap?: number }[];
     expenses: { label?: string; amount?: number; categoryId?: string }[];
     edits: { id: string; set: Record<string, unknown> }[];
     deletes: string[];
@@ -1470,6 +1472,15 @@ function ApprovalCard({ m }: { m: Message }) {
           .join(", ")}`,
     ),
     ...p.deletes.map((d) => `Remove ${d}`),
+    ...(p.newCategories ?? []).map((c) => `New category ${c.name}${c.cap ? `, cap ${naira(c.cap, { decimals: 0 })}` : ""}`),
+    ...(p.budget
+      ? [
+          `Budget for ${p.budget.month}: ${[
+            p.budget.income !== undefined ? `income ${naira(p.budget.income, { decimals: 0 })}` : "",
+            ...Object.entries(p.budget.caps ?? {}).map(([k, v]) => `${k} ${naira(v, { decimals: 0 })}`),
+          ].filter(Boolean).join(", ")}`,
+        ]
+      : []),
   ];
 
   return (

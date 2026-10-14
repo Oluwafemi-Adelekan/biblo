@@ -26,6 +26,8 @@ import {
   aiConfigured,
   readWithAI,
   type AiEditT,
+  type AiBudgetT,
+  type AiNewCategoryT,
   type AiExpenseT,
   type MonthContext,
 } from "@/lib/ai";
@@ -314,6 +316,15 @@ async function processScoped(messageId: string) {
             `${r.category.name}: ${r.total.toLocaleString()} of ${r.cap.toLocaleString()}${r.over ? " OVER" : ""}`,
         ),
       recentLines: [] as string[],
+      /* The budget it is allowed to change, in the ids it must use.
+         Where the month has none of its own, say so and say where the
+         standing budget lives. */
+      budgetLines: [
+        m.inheritedFrom
+          ? `${m.month} has no budget of its own; it runs on the standing budget, set in ${m.inheritedFrom}. Changing ${m.month} gives it its own; changing ${m.inheritedFrom} changes every month that relies on it.`
+          : `${m.month} has its own budget.`,
+        `income ${m.budget.income.toLocaleString()}; caps by id: ${Object.entries(m.budget.caps).map(([k, v]) => `${k} ${v.toLocaleString()}`).join(", ") || "none"}`,
+      ],
       historyLines: [] as string[],
       /* The last few turns, so "move that one" means something. */
       threadLines: messages
@@ -333,11 +344,28 @@ async function processScoped(messageId: string) {
     const said = (msg.text ?? "").toLowerCase();
     const words = said.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
     const figures = (said.match(/\d[\d,]*/g) ?? []).map((n) => Number(n.replace(/,/g, ""))).filter((n) => n >= 100);
+    /* Any entry can be corrected, not just recent ones, so older ones
+       come along whenever the message points at them: an id, a month
+       ("in September"), a day ("3 September", "Sept 3"), a figure, or
+       a word from the label, note or line items. */
+    const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+    const monthsSaid = MONTHS.map((name, i) => ({ i, hit: new RegExp(`\b${name.slice(0, 3)}(${name.slice(3)})?\b`).test(said) }))
+      .filter((m) => m.hit).map((m) => String(m.i + 1).padStart(2, "0"));
+    const daysSaid = [...said.matchAll(/(d{1,2})(?:st|nd|rd|th)?s+(?:ofs+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*.?s+(d{1,2})/g)]
+      .map((m) => {
+        const day = m[1] ?? m[4];
+        const mon = String(MONTHS.findIndex((x) => x.startsWith(m[2] ?? m[3])) + 1).padStart(2, "0");
+        return `-${mon}-${day.padStart(2, "0")}`;
+      });
+    const idsSaid = new Set(said.match(/exp_d{3,}/g) ?? []);
     const recent = allExpenses.slice(0, 60);
     const recalled = allExpenses.slice(60).filter((e) => {
+      if (idsSaid.has(e.id)) return true;
+      if (daysSaid.some((d) => e.date.endsWith(d))) return true;
+      if (monthsSaid.includes(e.date.slice(5, 7)) && e.entry.how !== "sample") return true;
       const hay = `${e.label} ${e.note ?? ""} ${(e.items ?? []).map((i) => i.name).join(" ")}`.toLowerCase();
       return words.some((w) => hay.includes(w)) || figures.some((n) => Math.abs(e.amountNGN) === n);
-    }).slice(0, 15);
+    }).slice(0, 150);
     context.recentLines = [...recent, ...recalled]
       .map((e) => {
         const head = `${e.id} ${e.date} ${e.label} ${Math.abs(e.amountNGN).toLocaleString()} [${e.categoryId}]`;
@@ -427,6 +455,8 @@ ${carriedNote}` : msg.text,
           expenses: reading.expenses,
           edits: reading.edits,
           deletes: reading.deletes,
+          budget: reading.budget,
+          newCategories: reading.newCategories,
         };
       }
     }
@@ -466,6 +496,8 @@ ${carriedNote}` : msg.text,
               expenses: reading.expenses as unknown as Record<string, unknown>[],
               edits: reading.edits as unknown as Record<string, unknown>[],
               deletes: reading.deletes,
+              budget: reading.budget as unknown as Record<string, unknown> | undefined,
+              newCategories: reading.newCategories as unknown as Record<string, unknown>[],
             },
             raw: msg.text,
           },
@@ -503,12 +535,29 @@ ${carriedNote}` : msg.text,
    button press. Edits first: "move that to giving" should not lose
    to a new row filed in the same breath. */
 async function applyProposal(
-  p: { expenses: AiExpenseT[]; edits: AiEditT[]; deletes: string[] },
+  p: {
+    expenses: AiExpenseT[];
+    edits: AiEditT[];
+    deletes: string[];
+    budget?: AiBudgetT;
+    newCategories?: AiNewCategoryT[];
+  },
   raw: string | undefined,
   how: "photo" | "typed",
 ): Promise<string[]> {
-  const { editExpense } = await import("@/lib/store");
+  const { editExpense, addCategory, saveBudget } = await import("@/lib/store");
+  const { getMonth } = await import("@/lib/data");
   const touched: string[] = [];
+  /* New categories go in before anything is filed into them. */
+  for (const c of p.newCategories ?? []) {
+    await addCategory({
+      name: c.name,
+      icon: c.icon,
+      kind: c.kind,
+      cap: 0,
+      month: p.budget?.month ?? new Date().toISOString().slice(0, 7),
+    });
+  }
   for (const ed of p.edits) {
     await editExpense(ed.id, ed.set);
     touched.push(ed.id);
@@ -533,6 +582,24 @@ async function applyProposal(
       ai: true,
     });
     touched.push(row.id);
+  }
+  /* The budget last, merged over what that month already runs on -
+     its own, or the standing one - so a single cap change does not
+     wipe the rest. A cap given with a new category lands here too. */
+  const caps: Record<string, number> = { ...(p.budget?.caps ?? {}) };
+  for (const c of p.newCategories ?? []) {
+    if (c.cap && c.kind === "spend") {
+      caps[c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32)] = c.cap;
+    }
+  }
+  if (p.budget || Object.keys(caps).length) {
+    /* No month named means the standing budget, so a new category's
+       cap reaches every month - not the current month alone, which
+       would quietly give it a budget of its own. */
+    const now = await getMonth();
+    const month = p.budget?.month ?? now.inheritedFrom ?? now.month;
+    const current = (await getMonth(month)).budget;
+    await saveBudget(month, p.budget?.income ?? current.income, { ...current.caps, ...caps });
   }
   return touched;
 }

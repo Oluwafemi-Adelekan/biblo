@@ -66,6 +66,31 @@ const AiEdit = z
   })
   .strict();
 
+/* Icons the app can draw. Kept in step with components/ui/CategoryIcon;
+   anything else would show as a question mark. */
+export const CATEGORY_ICONS = [
+  "Bank", "Barbell", "Church", "ForkKnife", "GasPump", "Gift", "HandHeart",
+  "HandSoap", "Lightning", "PiggyBank", "PlayCircle", "ShieldCheck",
+  "ShoppingBag", "ShoppingCart", "TShirt", "WifiHigh", "Wrench", "AirplaneTilt",
+] as const;
+
+const AiBudget = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  income: z.number().nonnegative().optional(),
+  caps: z.record(z.string(), z.number().nonnegative()).optional(),
+});
+
+const AiNewCategory = z.object({
+  name: z.string().min(1).max(40),
+  kind: z.enum(["spend", "income"]).default("spend"),
+  icon: z.enum(CATEGORY_ICONS).default("ShoppingBag"),
+  /** Optional cap for the month being talked about. */
+  cap: z.number().nonnegative().optional(),
+});
+
+export type AiBudgetT = z.infer<typeof AiBudget>;
+export type AiNewCategoryT = z.infer<typeof AiNewCategory>;
+
 /* file  - it wrote something: new expenses, edits, or both
    chat  - conversation; nothing written
    defer - background work (in truth: Claude's queue) */
@@ -77,6 +102,11 @@ const AiResult = z.object({
   expenses: z.array(AiExpense).max(20).default([]),
   edits: z.array(AiEdit).max(10).default([]),
   deletes: z.array(z.string().regex(/^exp_\d{3,}$/)).max(10).default([]),
+  /** A change to one month's budget: income and/or caps by category
+   *  id. Caps not mentioned keep their current value. */
+  budget: AiBudget.optional(),
+  /** Categories to create, before anything here is filed into them. */
+  newCategories: z.array(AiNewCategory).max(3).default([]),
   reply: z.string().min(1).max(900),
 });
 
@@ -88,6 +118,8 @@ export type AiReading =
       expenses: z.infer<typeof AiExpense>[];
       edits: AiEditT[];
       deletes: string[];
+      budget?: AiBudgetT;
+      newCategories: AiNewCategoryT[];
       reply: string;
     }
   | { kind: "chat"; reply: string }
@@ -99,6 +131,8 @@ export type AiReading =
       expenses: z.infer<typeof AiExpense>[];
       edits: AiEditT[];
       deletes: string[];
+      budget?: AiBudgetT;
+      newCategories: AiNewCategoryT[];
     }
   | { kind: "defer"; reason: string; reply?: string };
 
@@ -116,6 +150,9 @@ export type MonthContext = {
   /** Every real record since they started, already added up: month by
    *  month, all time, and each entry that involves another person. */
   historyLines: string[];
+  /** The budget in force for the month, by category id, and where it
+   *  comes from, so a change names real ids and real figures. */
+  budgetLines: string[];
 };
 
 function prompt(categories: Category[], ctx: MonthContext, today: string, userName: string) {
@@ -134,11 +171,11 @@ Everyday chat is welcome - trivia, ideas, questions, the day itself. But you are
 WHAT YOU CAN DO
 1. Converse (verdict "chat"). Questions, thinking out loud, advice. NOTHING is written under "chat" - so never say "logged", "filed" or "recorded" in a chat reply. If something should be filed, the verdict is "file" with it in expenses[]. Saying it is filed when it is not is the one unforgivable thing here. Asked whether something is already recorded ("confirm this is logged"), answer ONLY from WHAT IS FILED: find the entry with that amount and date and name it ("yes - 3,800 on 23 Sept, Mega Mart bakery"), or say plainly that it is not there, and file it in the same turn. Never answer about a different receipt than the one they pointed at, and never call something recorded because you remember handling it. If a request is ambiguous - you cannot tell which entry they mean, or what they want changed - ask them, as "chat", rather than guessing. You can search the web: use it for current, checkable facts - market prices, brands, fuel and electricity rates, where to buy things, what something should cost. Mention where a figure came from in passing, naturally. Never use the web to fill in THEIR money: their amounts, dates and receipts come only from them.
 2. File money that happened (verdict "file", expenses[]): receipts, bank screenshots, dictated spending, money received. One message can hold several; file each.
-3. Change entries they ask you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless they correct a figure. Use the exact id from RECENTLY FILED. Only edit when they clearly asked for it and you are confident which entry they mean. When ${userName} tells you what something is or what it should say, that IS the confirmation - make the edit right away; never defer to "verify" what they just told you. If checking a name or price on the web genuinely helps, search now, in this same turn, and file the result - never promise to look it up later.
-4. Delete entries (verdict "file", deletes[]): only when they clearly ask you to remove a specific entry, and only ids from RECENTLY FILED. If you are not certain which one they mean, ask first.
+3. Change entries they ask you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless they correct a figure. Use the exact id from WHAT IS FILED. That list carries the newest entries plus any older one this message points to by name, amount, date or month, so an entry from weeks ago is editable as long as they say which one. Only edit when they clearly asked for it and you are confident which entry they mean. When ${userName} tells you what something is or what it should say, that IS the confirmation - make the edit right away; never defer to "verify" what they just told you. If checking a name or price on the web genuinely helps, search now, in this same turn, and file the result - never promise to look it up later.
+4. Delete entries (verdict "file", deletes[]): only when they clearly ask you to remove a specific entry, and only ids from WHAT IS FILED. If you are not certain which one they mean, ask first.
 5. Check before changing (verdict "ask"): when the next step is a concrete change you are ready to make but should confirm first - a guessed category, a delete they implied but did not confirm plainly, a correction you are not certain of - put the exact change in expenses/edits/deletes and make reply the question itself: ONE short line, like "File it under dining?". Optional detail: one sentence of context. They answer with a button, so the question must be strictly yes-or-no. Never use ask for conversation, for anything they already told you plainly (that is verdict file), or twice for the same thing.
    STRONGLY PREFER ask over a typed clarifying question. If you can form ANY reasonable version of the change, propose that version as an ask and let the button settle it - do not interview them first. A typed question (verdict "chat") is only for when you cannot form a proposal at all. Long back-and-forths overwhelm; the button settles it.
-6. Photos, PDFs and CSV or text files are all yours to read - a PDF receipt or bank statement is filed exactly like a photo of one, every row of a CSV is read, none of it is deferred. A figure you genuinely cannot make out is not a defer either: say which one (verdict "chat") and ask for it. Budgets, caps and categories are edited on the Budget screen, not by you: when they ask for a new category or a cap change, tell them that in one line (verdict "chat") - "Add it under Budget, then tell me and I'll move the entry" - and never leave them waiting. There is nothing you defer; verdict "defer" should not be used. Exports are real: when they ask for their data as a spreadsheet or CSV for some period, reply (verdict "chat") with a markdown link exactly like [Download your expenses](/api/export?from=2026-09-01&to=2026-09-30) using their dates, adding &category=<id> to narrow to one category - tapping it downloads the file. For anything visual - a report, a statement, graphs for a period - link [Your statement](/report?from=2026-09-01&to=2026-09-30) the same way with their dates; it is a print-ready page they can save as a PDF. CSV for raw data, the statement for eyes. Beyond that, never promise features the app does not have (reminders, PDF reports); say you will look into it.
+6. Photos, PDFs and CSV or text files are all yours to read - a PDF receipt or bank statement is filed exactly like a photo of one, every row of a CSV is read, none of it is deferred. A figure you genuinely cannot make out is not a defer either: say which one (verdict "chat") and ask for it. Budgets and categories are yours to change when they ask (verdict "file"). A budget change goes in budget: the month (YYYY-MM), and income and/or caps by category id - only the caps they named, the rest stay as they are. A month without its own budget runs on the standing budget (see BUDGET); changing that month gives it its own and leaves the others alone, while changing the standing month changes every month that relies on it, so say which you did. A new category goes in newCategories with a short name, spend or income, an icon from ${CATEGORY_ICONS.join(", ")}, and a cap if they gave one; in the same reply you can file into it and move entries into it, using the id you get by lowercasing the name and joining words with hyphens. Only change a budget or add a category when they asked for it. Shared pages for other people (a link for a trip, a statement to send to someone) are not yours to make; say the auditor publishes those. There is nothing you defer; verdict "defer" should not be used. Exports are real: when they ask for their data as a spreadsheet or CSV for some period, reply (verdict "chat") with a markdown link exactly like [Download your expenses](/api/export?from=2026-09-01&to=2026-09-30) using their dates, adding &category=<id> to narrow to one category - tapping it downloads the file. For anything visual - a report, a statement, graphs for a period - link [Your statement](/report?from=2026-09-01&to=2026-09-30) the same way with their dates; it is a print-ready page they can save as a PDF. CSV for raw data, the statement for eyes. Beyond that, never promise features the app does not have (reminders, PDF reports); say you will look into it.
 
 THE MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
@@ -146,6 +183,9 @@ ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
 ALL TIME, since their first real record. This is complete and already added up by the app - the figures here are the truth. For ANY question beyond this month ("since I started", "so far", "who have I given the most", "my biggest payers", "how much has X cost me") answer from this section and never by adding up WHAT IS FILED below, which only holds the newest entries and will give a wrong total. When the question is about people, group the PEOPLE entries by the person, reading both label and note; money that came back from someone (refund) nets off what went to them; and say in a few words what you counted so they can check it. The sample month is not part of their records - never mention it.
 ${ctx.historyLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
+
+BUDGET
+${ctx.budgetLines.map((l) => `- ${l}`).join("\n") || "- none set"}
 
 WHAT IS FILED (newest first, plus any older entry this message seems to refer to; these ids are the only ones you may edit or delete; "items:" lines are that entry's current line items). This is your memory of every receipt they ever sent: a receipt from weeks ago lives here as its entry and line items, so answer questions about it from this list - "what did I pay for the floor", "how much was the Jendol bread" - without needing the picture again.
 ${ctx.recentLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
@@ -322,7 +362,9 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
   const empty =
     parsed.expenses.length === 0 &&
     parsed.edits.length === 0 &&
-    parsed.deletes.length === 0;
+    parsed.deletes.length === 0 &&
+    !parsed.budget &&
+    parsed.newCategories.length === 0;
   if (parsed.verdict === "defer" || empty) {
     // An ask with nothing attached is just a question: conversation.
     if (parsed.verdict === "ask") {
@@ -335,7 +377,25 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
     };
   }
 
-  const known = new Set(input.categories.map((c) => c.id));
+  /* A category created in this same reply counts as known, so it can
+     be filed into and capped in one go. The id is worked out the way
+     the store will make it. */
+  const slug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+  const known = new Set([
+    ...input.categories.map((c) => c.id),
+    ...parsed.newCategories.map((c) => slug(c.name)),
+  ]);
+  for (const c of parsed.newCategories) {
+    if (input.categories.some((k) => k.id === slug(c.name))) {
+      return { kind: "defer", reason: `${c.name} already exists.`, reply: parsed.reply };
+    }
+  }
+  for (const id of Object.keys(parsed.budget?.caps ?? {})) {
+    if (!known.has(id)) {
+      return { kind: "defer", reason: `Unknown category "${id}" in a budget change.`, reply: parsed.reply };
+    }
+  }
   for (const e of parsed.expenses) {
     if (!known.has(e.categoryId)) {
       return {
@@ -379,6 +439,8 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
       expenses: parsed.expenses,
       edits: parsed.edits,
       deletes: parsed.deletes,
+      budget: parsed.budget,
+      newCategories: parsed.newCategories,
     };
   }
 
@@ -387,6 +449,8 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
     expenses: parsed.expenses,
     edits: parsed.edits,
     deletes: parsed.deletes,
+    budget: parsed.budget,
+    newCategories: parsed.newCategories,
     reply: parsed.reply,
   };
 }

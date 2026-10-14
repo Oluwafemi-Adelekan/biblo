@@ -135,6 +135,8 @@ export const Message = z.object({
             expenses: z.array(z.record(z.string(), z.unknown())).default([]),
             edits: z.array(z.record(z.string(), z.unknown())).default([]),
             deletes: z.array(z.string()).default([]),
+            budget: z.record(z.string(), z.unknown()).optional(),
+            newCategories: z.array(z.record(z.string(), z.unknown())).default([]),
           }),
           /** The original message text, kept for entry.raw on filing. */
           raw: z.string().optional(),
