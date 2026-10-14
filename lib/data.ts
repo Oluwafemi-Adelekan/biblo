@@ -149,9 +149,22 @@ export const getMonth = cache(async (month?: string) => {
       : labelFor(todayISO(), monthStart);
   const period = periodOf(activeMonth, monthStart);
   const rows = all.filter((e) => e.date >= period.from && e.date < period.to);
-  const budget =
-    budgets.find((b) => b.month === activeMonth) ??
-    ({ month: activeMonth, income: 0, total: 0, caps: {} } satisfies Budget);
+  /* A budget set once carries every month after it. A month with its
+     own saved budget uses that; any other month uses the first real
+     budget - the earliest one that is not the demo month - so
+     changing October changes October alone and November goes back
+     to the standing budget. Months before the first budget have none. */
+  const own = budgets.find((b) => b.month === activeMonth);
+  const base = budgets
+    .filter((b) => b.month !== cfg.demoMonth)
+    .sort((a, b) => a.month.localeCompare(b.month))[0];
+  const inheritedFrom =
+    !own && base && base.month < activeMonth ? base.month : undefined;
+  const budget: Budget =
+    own ??
+    (inheritedFrom && base
+      ? { ...base, month: activeMonth }
+      : ({ month: activeMonth, income: 0, total: 0, caps: {} } satisfies Budget));
 
   const byId = new Map(categories.map((c) => [c.id, c]));
   const spendRows = rows.filter((e) => byId.get(e.categoryId)?.kind !== "income");
@@ -219,6 +232,9 @@ export const getMonth = cache(async (month?: string) => {
     periodLast: addDays(period.to, -1),
     isDemo: activeMonth === cfg.demoMonth,
     budget,
+    /** Set when this month has no budget of its own and is showing
+     *  the standing one, the month it came from. */
+    inheritedFrom,
     categories,
     categoryById: byId,
     expenses: rows,

@@ -11,9 +11,16 @@ import { monthLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetPage() {
+export default async function BudgetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   await requirePin();
-  const [m, index] = await Promise.all([getMonth(), getMonthIndex()]);
+  /* The picker in the header links here with ?month=; reading it is
+     what lets one month be changed on its own. */
+  const { month } = await searchParams;
+  const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
   const spentByCategory = Object.fromEntries(
     m.categoryRows.map((r) => [r.category.id, r.total]),
   );
@@ -38,6 +45,13 @@ export default async function BudgetPage() {
           />
         </HeaderPortal>
       </Band>
+
+      {m.inheritedFrom ? (
+        <p className="px-5 pb-3 text-meta text-ink/60 lg:px-0">
+          Your standing budget, from {monthLabel(m.inheritedFrom)}. Change
+          anything here and only {monthLabel(m.month)} changes.
+        </p>
+      ) : null}
 
       <div className="lg-card">
         <BudgetForm
