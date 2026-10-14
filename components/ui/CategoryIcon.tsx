@@ -17,6 +17,7 @@ import {
   TShirt,
   WifiHigh,
   Wrench,
+  AirplaneTilt,
 } from "@phosphor-icons/react/ssr";
 import type { IconProps } from "@phosphor-icons/react";
 import type { ComponentType } from "react";
@@ -45,6 +46,7 @@ export const ICONS: Record<string, ComponentType<IconProps>> = {
   TShirt,
   WifiHigh,
   Wrench,
+  AirplaneTilt,
 };
 
 export function CategoryIcon({
