@@ -314,6 +314,7 @@ async function processScoped(messageId: string) {
             `${r.category.name}: ${r.total.toLocaleString()} of ${r.cap.toLocaleString()}${r.over ? " OVER" : ""}`,
         ),
       recentLines: [] as string[],
+      historyLines: [] as string[],
       /* The last few turns, so "move that one" means something. */
       threadLines: messages
         .slice(-21, -1)
@@ -348,6 +349,9 @@ async function processScoped(messageId: string) {
         return `${head}\n  items: ${items}`;
       });
     const validIds = new Set(allExpenses.map((e) => e.id));
+
+    /* The whole history, already added up - see lib/history. */
+    context.historyLines = (await import("@/lib/history")).historyLines(allExpenses, cats);
 
     /* The assistant addresses whoever this chat belongs to. */
     const { getSettings } = await import("@/lib/settings");

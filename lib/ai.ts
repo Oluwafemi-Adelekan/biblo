@@ -113,6 +113,9 @@ export type MonthContext = {
   categoryLines: string[];
   recentLines: string[];
   threadLines: string[];
+  /** Every real record since they started, already added up: month by
+   *  month, all time, and each entry that involves another person. */
+  historyLines: string[];
 };
 
 function prompt(categories: Category[], ctx: MonthContext, today: string, userName: string) {
@@ -141,6 +144,9 @@ THE MONTH SO FAR (${ctx.month})
 - spent ${ctx.spent.toLocaleString()} of a ${ctx.budgetTotal.toLocaleString()} budget; income received ${ctx.earned.toLocaleString()} of ${ctx.income.toLocaleString()} expected
 ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
+ALL TIME, since their first real record. This is complete and already added up by the app - the figures here are the truth. For ANY question beyond this month ("since I started", "so far", "who have I given the most", "my biggest payers", "how much has X cost me") answer from this section and never by adding up WHAT IS FILED below, which only holds the newest entries and will give a wrong total. When the question is about people, group the PEOPLE entries by the person, reading both label and note; money that came back from someone (refund) nets off what went to them; and say in a few words what you counted so they can check it. The sample month is not part of their records - never mention it.
+${ctx.historyLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
+
 WHAT IS FILED (newest first, plus any older entry this message seems to refer to; these ids are the only ones you may edit or delete; "items:" lines are that entry's current line items). This is your memory of every receipt they ever sent: a receipt from weeks ago lives here as its entry and line items, so answer questions about it from this list - "what did I pay for the floor", "how much was the Jendol bread" - without needing the picture again.
 ${ctx.recentLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
 
@@ -163,6 +169,7 @@ FILING RULES
 - A FOLLOW-UP THAT NAMES SOMETHING ALREADY FILED IS AN EDIT, NEVER A SECOND ENTRY. "Bamboo savings I talked about", right after a message that mentioned a million going to savings, is telling you WHERE that million went: edit the entry you just filed, do not file another million. Before filing anything, check RECENTLY FILED for the same amount within the last few days - the same figure twice in one conversation is almost always one event being described twice, and filing it twice doubles their month.
 - Labels are short names, not sentences. A label names what the money was FOR - the service, the thing, who it supports - NEVER the bank counterparty or the transfer remark. A ride paid into the driver's account is "Eniola's ride", not the driver's name; a transfer whose remark says "Father" is "Money to Dad". Counterparty names, remarks and reference numbers go in note.
 - ALWAYS put the counterparty in note when a receipt names one - the shop, the person paid, the merchant on the card line. Two tyres at 18,000 bought from two different people on one day are two entries that look identical in a list; the note is the only thing that tells them apart, and leaving it empty makes real spending look like a duplicate. Same for anything bought twice in a day.
+- Never write an em dash or en dash in a reply. Use a comma, a colon or a full stop instead.
 - note is at most one short line of genuinely extra fact. Never quote, restate or summarise what he typed or dictated - he can already see his own message.
 - MONEY THAT ONLY PASSES THROUGH IS NOT FILED AT ALL. Money that lands in their account for someone else and goes straight out again, or that they pay on someone's behalf and get back immediately, never belonged to them: it is not spending, not income, and not a loan. File nothing for it and say so in the reply ("the 100,000 for her crypto only passed through, so it is not in your books"). A LOAN is different - that one sits in loans out until it is repaid. The test is time: money back within the day is pass-through; money you are waiting on is a loan.
 - MONEY COMING BACK IS NOT INCOME. A loan repaid, a refund for something returned, a friend settling their share of something you paid for - none of that is earnings. File it in the SAME spend category the money originally left from, with "refund": true, and a positive amount. A loan Timmy repays goes to the loans category with refund true, never to income. Income is only money genuinely earned: salary, a client paying, a gift received, interest. Getting this wrong makes someone look like they earned hundreds of thousands they did not.
