@@ -75,7 +75,7 @@ export default async function BudgetPage({
             </Label>
           </div>
           <div className="border-y border-rule bg-bone">
-            <CategoryBars rows={m.categoryRows} />
+            <CategoryBars rows={m.categoryRows} month={m.month} from="budget" />
           </div>
         </Band>
       ) : null}

@@ -19,9 +19,16 @@ import type { Month } from "@/lib/data";
 export function CategoryBars({
   rows,
   limit,
+  month,
+  from,
 }: {
   rows: Month["categoryRows"];
   limit?: number;
+  /** The month being viewed, carried into the list so tapping
+   *  September's giving opens September's giving. */
+  month?: string;
+  /** The page the bars sit on, so the list can offer a way back. */
+  from?: "home" | "budget";
 }) {
   const shown = (limit ? rows.slice(0, limit) : rows).filter((r) => r.total !== 0);
   if (shown.length === 0) return null;
@@ -39,7 +46,7 @@ export function CategoryBars({
         return (
           <li key={r.category.id}>
             <Link
-              href={`/expenses?category=${r.category.id}`}
+              href={`/expenses?category=${r.category.id}${month ? `&month=${month}` : ""}${from ? `&from=${from}` : ""}`}
               className="hoverable block px-5 py-3.5 transition-transform duration-press ease-out-strong active:scale-[0.99]"
             >
               <div className="flex items-center gap-2.5">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "@phosphor-icons/react/ssr";
 import { ExportMenu } from "@/components/ExportMenu";
 import { requirePin } from "@/lib/pin";
 import { Band } from "@/components/ui/Band";
@@ -17,10 +18,14 @@ export const dynamic = "force-dynamic";
 export default async function Expenses({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; check?: string; month?: string }>;
+  searchParams: Promise<{ category?: string; check?: string; month?: string; from?: string }>;
 }) {
   await requirePin();
-  const { category: categoryId, check, month } = await searchParams;
+  const { category: categoryId, check, month, from } = await searchParams;
+  /* Every link off this page keeps the month being viewed - losing it
+     is what sent September's giving to October's. */
+  const keep = (q: string) =>
+    `/expenses?${[q, month ? `month=${month}` : "", from ? `from=${from}` : ""].filter(Boolean).join("&")}`;
   const [m, index] = await Promise.all([getMonth(month), getMonthIndex()]);
 
   /* The view to come back to from an entry: this month, this
@@ -33,6 +38,7 @@ export default async function Expenses({
       if (month) q.set("month", month);
       if (categoryId) q.set("category", categoryId);
       if (check === "1") q.set("check", "1");
+      if (from) q.set("from", from);
       const s = q.toString();
       return s ? `?${s}` : "";
     })();
@@ -43,6 +49,17 @@ export default async function Expenses({
   let rows = m.expenses;
   if (active) rows = rows.filter((e) => e.categoryId === active.id);
   if (checkOnly) rows = rows.filter((e) => e.entry.check);
+
+  /* Where the back link goes: the page that opened this one, on the
+     same month. Only shown when there is somewhere to go back to. */
+  const back =
+    from === "home"
+      ? { href: month ? `/?month=${month}` : "/", label: "Home" }
+      : from === "budget"
+        ? { href: month ? `/budget?month=${month}` : "/budget", label: "Budget" }
+        : active || checkOnly
+          ? { href: keep(""), label: "All expenses" }
+          : null;
 
   /* Income is money in, so totalling only negatives would show zero
      on that view. Total whichever direction the filter is about. */
@@ -91,6 +108,15 @@ export default async function Expenses({
       </Band>
 
       <Band tone="sage" pad="none" className="lg-card px-5 pb-5 lg:p-6">
+        {back ? (
+          <Link
+            href={back.href}
+            className="mb-3 inline-flex items-center gap-2 py-2 text-label uppercase text-ink/55 transition-colors hover:text-ink"
+          >
+            <ArrowLeft size={14} weight="bold" />
+            {back.label}
+          </Link>
+        ) : null}
         <div>
           {incoming ? (
             <MaskIncome className="text-headline text-ink/35">
@@ -119,13 +145,13 @@ export default async function Expenses({
         ) : null}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Chip href="/expenses" on={!active && !checkOnly}>
+          <Chip href={keep("")} on={!active && !checkOnly}>
             All
           </Chip>
-          <Chip href="/expenses?category=income" on={active?.id === "income"}>
+          <Chip href={keep("category=income")} on={active?.id === "income"}>
             Income
           </Chip>
-          <Chip href="/expenses?check=1" on={checkOnly}>
+          <Chip href={keep("check=1")} on={checkOnly}>
             Needs a look {m.needsCheck.length > 0 ? `(${m.needsCheck.length})` : ""}
           </Chip>
           {active && active.id !== "income" ? <Chip on>{active.name}</Chip> : null}

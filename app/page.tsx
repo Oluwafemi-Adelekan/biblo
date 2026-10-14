@@ -135,7 +135,7 @@ export default async function Home({
           </Link>
         </div>
         <div className="border-y border-rule bg-bone">
-          <CategoryBars rows={m.categoryRows} limit={6} />
+          <CategoryBars rows={m.categoryRows} limit={6} month={m.month} from="home" />
         </div>
       </Band>
       ) : null}
@@ -147,7 +147,7 @@ export default async function Home({
             Recent
           </Label>
           <Link
-            href="/expenses"
+            href={`/expenses?month=${m.month}&from=home`}
             className="flex items-center gap-1 text-label uppercase text-ink/55"
           >
             All {m.expenses.length}
