@@ -156,6 +156,26 @@ body {
   }
 }
 
+/* A sent message pops up from the live edge: a short rise and a
+   touch of scale, settling with a slight overshoot. Opacity is full
+   almost at once - a sent message is never a faded one. */
+@keyframes send-pop {
+  0% {
+    transform: translateY(8px) scale(0.95);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(-1px) scale(1.005);
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 @keyframes rise {
   from {
     transform: translateY(8px);

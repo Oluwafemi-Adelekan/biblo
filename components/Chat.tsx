@@ -111,6 +111,9 @@ export function Chat({
   /* How far above the newest message the reader has scrolled. Past
      a screen's worth, a button appears to take them back down. */
   const [away, setAway] = useState(false);
+  /** When this page opened. Messages already in the thread then stay
+   *  still; only ones that arrive afterwards animate in. */
+  const openedAt = useRef(Date.now());
   useEffect(() => {
     const scroller = endRef.current?.closest("main");
     if (!scroller) return;
@@ -627,6 +630,13 @@ export function Chat({
                 m.id === openAsk?.id ? null : (
                   <Bubble
                     key={m.id}
+                    enter={
+                      m.id === PENDING_ID
+                        ? "send"
+                        : m.from !== "you" && Date.parse(m.at) > openedAt.current
+                          ? "reply"
+                          : null
+                    }
                     message={m}
                     sending={m.id === PENDING_ID}
                     progress={m.id === PENDING_ID ? uploaded : null}
@@ -1037,7 +1047,9 @@ function Bubble({
   cards = [],
   reveal = false,
   progress = null,
+  enter = null,
 }: {
+  enter?: "send" | "reply" | null;
   message: Message;
   sending?: boolean;
   progress?: { done: number; of: number } | null;
@@ -1052,11 +1064,14 @@ function Bubble({
   return (
     <div
       className={cn(
-        "flex flex-col motion-safe:animate-[rise_260ms_var(--ease-out-strong)]",
-        mine ? "items-end" : "items-start",
-        // Dimmed until the server has it, so "sent" and "sending"
-        // never look the same.
-        sending && "opacity-55",
+        "flex flex-col",
+        mine ? "items-end origin-bottom-right" : "items-start origin-bottom-left",
+        /* Only a message that just arrived moves. Your own pops up the
+           instant you send it, at full strength; the server's copy
+           that replaces it a moment later must not replay anything,
+           or it reads as a flash. Replies rise in as before. */
+        enter === "send" && "motion-safe:animate-[send-pop_320ms_cubic-bezier(0.2,0.9,0.3,1)]",
+        enter === "reply" && "motion-safe:animate-[rise_260ms_var(--ease-out-strong)]",
       )}
     >
       <div
@@ -1896,7 +1911,11 @@ function DayDivider({ at }: { at: string }) {
        one and takes its place. Offsets clear the phone's brand band
        and the desktop header. */
     <div
-      className="pointer-events-none sticky top-[3.75rem] z-[5] flex justify-center py-1 lg:top-[4.5rem]"
+      className={cn(
+        "pointer-events-none z-[5] flex justify-center py-1",
+        // You are already in today; pinning it says nothing.
+        dayName(at) !== "Today" && "sticky top-[3.75rem] lg:top-[4.5rem]",
+      )}
       role="separator"
       aria-label={dayName(at)}
     >
