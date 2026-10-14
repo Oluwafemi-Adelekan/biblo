@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -104,6 +105,18 @@ export function Chat({
   const [files, setFiles] = useState<Pending[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sending, startSending] = useTransition();
+  /* Day dividers are drawn in the browser only. The server runs in
+     UTC and the phone in Lagos time, so a message sent just after
+     midnight would sit under a different day on each and the page
+     would disagree with itself. */
+  const inBrowser = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  /** Files through so far on the message being sent, for the line
+   *  under its bubble. Null when nothing is uploading. */
+  const [uploaded, setUploaded] = useState<{ done: number; of: number } | null>(null);
 
   const [attachOpen, setAttachOpen] = useState(false);
   /* An image tapped anywhere in the chat opens full screen. */
@@ -459,11 +472,14 @@ export function Chat({
         at: new Date().toISOString(),
         from: "you",
         text: sentText || undefined,
+        /* The bubble shows the real photos straight away, from the
+           previews already in memory, instead of blank tiles while the
+           upload runs. */
         attachments: sentFiles.map((f) => ({
           name: f.file.name,
           type: f.file.type,
           size: f.file.size,
-          url: "",
+          url: f.preview ?? "",
         })),
         status: "pending",
       });
@@ -489,9 +505,11 @@ export function Chat({
              function caps its body at 4.5MB, which is under what a
              phone camera produces, so the photos most worth sending
              were the ones that failed. */
+          setUploaded({ done: 0, of: prepared.targets.length });
           for (let i = 0; i < prepared.targets.length; i++) {
             const t = prepared.targets[i];
             const res = await put(t.url, sentFiles[i].file);
+            setUploaded({ done: i + 1, of: prepared.targets.length });
             if (!res.ok) {
               setError(
                 `Could not upload ${t.name}. ${res.why} Your message is still in the box.`,
@@ -534,6 +552,7 @@ export function Chat({
         restore();
       } finally {
         inFlight.current = false;
+        setUploaded(null);
       }
     });
   }
@@ -581,13 +600,18 @@ export function Chat({
         {thread.length === 0 ? (
           <Empty onPick={(t) => { applyText(t); fieldRef.current?.focus(); }} />
         ) : (
-          thread.map((m) =>
+          thread.map((m, i) =>
             // The open question lives in the composer card, not here.
             m.id === openAsk?.id ? null : (
+              <Fragment key={m.id}>
+              {inBrowser && (i === 0 || dayKey(thread[i - 1].at) !== dayKey(m.at)) ? (
+                <DayDivider at={m.at} />
+              ) : null}
               <Bubble
                 key={m.id}
                 message={m}
                 sending={m.id === PENDING_ID}
+                progress={m.id === PENDING_ID ? uploaded : null}
                 onView={setViewer}
                 cards={(m.meta?.expenseIds?.length
                   ? m.meta.expenseIds
@@ -599,6 +623,7 @@ export function Chat({
                   .map((id) => ({ id, e: expenses[id] }))}
                 reveal={m.id === revealId}
               />
+              </Fragment>
             ),
           )
         )}
@@ -982,9 +1007,11 @@ function Bubble({
   onView,
   cards = [],
   reveal = false,
+  progress = null,
 }: {
   message: Message;
   sending?: boolean;
+  progress?: { done: number; of: number } | null;
   onView?: (url: string) => void;
   cards?: { id: string; e: ExpenseLite }[];
   reveal?: boolean;
@@ -1017,8 +1044,8 @@ function Bubble({
             filled card, several get uniform squares side by side. */}
         {m.attachments.length > 0 ? (
           <ul className={cn("flex flex-wrap gap-1.5", m.text ? "mb-2" : "")}>
-            {m.attachments.map((a) => (
-              <li key={a.url}>
+            {m.attachments.map((a, i) => (
+              <li key={`${i}-${a.name}`}>
                 {a.type.startsWith("image/") ? (
                   <button
                     type="button"
@@ -1071,8 +1098,8 @@ function Bubble({
         {sending ? (
           <>
             <span className="size-1.5 animate-[pulse-mic_1.1s_ease-in-out_infinite] rounded-full bg-ink/50" />
-            {m.attachments.length > 0
-              ? `Sending ${m.attachments.length} ${m.attachments.length === 1 ? "file" : "files"}`
+            {progress && progress.done < progress.of
+              ? `Uploading ${progress.done + 1} of ${progress.of}`
               : "Sending"}
           </>
         ) : null}
@@ -1796,3 +1823,38 @@ function Empty({ onPick }: { onPick: (t: string) => void }) {
    because an audio file is something neither the app nor Claude can
    read. Unsupported browsers simply do not get the button. */
 
+/* --- day dividers ----------------------------------------------
+   The thread is weeks long, and a time alone ("9:04 pm") does not say
+   which day it was. A divider sits wherever the day changes, the way
+   WhatsApp does it: Today, Yesterday, a weekday for this week, then
+   the date. Local time, because that is the day the person lived. */
+
+function dayKey(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayName(iso: string) {
+  const d = new Date(iso);
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((start(new Date()) - start(d)) / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days > 1 && days < 7) return d.toLocaleDateString("en-GB", { weekday: "long" });
+  return d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    ...(d.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}),
+  });
+}
+
+function DayDivider({ at }: { at: string }) {
+  return (
+    <div className="flex justify-center py-1" role="separator" aria-label={dayName(at)}>
+      <span className="bg-bone px-3 py-1 text-label uppercase text-ink/55 ring-1 ring-inset ring-ink/8">
+        {dayName(at)}
+      </span>
+    </div>
+  );
+}
