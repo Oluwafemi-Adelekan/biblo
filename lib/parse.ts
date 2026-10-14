@@ -89,9 +89,21 @@ export function readCategory(text: string, categories: Category[]) {
   return best;
 }
 
+/* A question is never an expense, even when it holds a figure and a
+   category word. "Shouldn't dad be at like 80k?" was filed as an
+   80,000 family expense, because this parser saw a number and "dad"
+   and never asked whether the sentence was telling it anything had
+   been spent. Anything that reads as a question goes to the
+   assistant, which can answer it. */
+const QUESTION = /\?\s*$|^\s*(shouldn'?t|should|would|wouldn'?t|could|couldn'?t|can|can'?t|is|isn'?t|are|aren'?t|was|wasn'?t|were|do|does|did|didn'?t|have|has|haven'?t|hasn'?t|how|what|why|when|where|who|which|whose|abeg|please)\b/i;
+
+export function looksLikeQuestion(text: string) {
+  return QUESTION.test(text.trim());
+}
+
 export function parseEntry(text: string, categories: Category[]): Parsed {
   const trimmed = text.trim();
-  const amount = readAmount(trimmed);
+  const amount = looksLikeQuestion(trimmed) ? null : readAmount(trimmed);
   const when = readDate(trimmed);
   const cat = readCategory(trimmed, categories);
 
