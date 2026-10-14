@@ -73,6 +73,19 @@ export function historyLines(all: Expense[], categories: Category[]): string[] {
     tot.out += out;
     tot.sav += sav;
     lines.push(`${mo}: income ${n(inc)}, spent ${n(out)} (of which moved to savings ${n(sav)}), left ${n(inc - out)}`);
+    /* By category within the month, so "fuel in September" has an
+       answer even after September has left the recent entries. */
+    const cat = new Map<string, number>();
+    for (const e of rows) {
+      if (kindOf.get(e.categoryId) === "income") continue;
+      cat.set(e.categoryId, (cat.get(e.categoryId) ?? 0) - e.amountNGN);
+    }
+    lines.push(
+      `  ${mo} by category: ${[...cat]
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, v]) => `${nameOf.get(c) ?? c} ${n(v)}`)
+        .join(", ")}`,
+    );
   }
   lines.push(`ALL TIME: income ${n(tot.inc)}, spent ${n(tot.out)} (of which moved to savings ${n(tot.sav)}), left ${n(tot.inc - tot.out)}`);
 
