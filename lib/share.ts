@@ -71,6 +71,52 @@ export type LedgerDoc = {
 };
 
 /** A stretch of one person's own books. */
+/** A trip written for other people to follow: what to sort before
+ *  leaving, the border, a day-by-day plan, where to stay, and an
+ *  optional extension that carries its own warning. */
+export type GuideStop = {
+  name: string;
+  /** One line on what it is and why go. */
+  what: string;
+  /** What it cost, as paid on the trip this came from. */
+  cost?: string;
+  /** Something to watch for. */
+  warn?: string;
+  link?: string;
+};
+
+export type GuideDay = {
+  day: string;
+  title: string;
+  stops: GuideStop[];
+  night?: string;
+};
+
+export type GuideStay = {
+  name: string;
+  where: string;
+  sleeps: string;
+  note?: string;
+  url: string;
+  /** The listing's own preview image and title, read when published. */
+  image?: string;
+  listing?: string;
+  /** Marks the group's own pick, or a host they recommend. */
+  tag?: string;
+};
+
+export type GuideDoc = {
+  kind: "guide";
+  /** One line: the route and the length. */
+  summary: string;
+  facts: { label: string; value: string }[];
+  before: { title: string; points: string[] }[];
+  days: GuideDay[];
+  stays: GuideStay[];
+  extension?: { title: string; adds: string; warning: string; days: GuideDay[] };
+  short?: string;
+};
+
 export type PeriodDoc = {
   kind: "period";
   from: string;
@@ -97,7 +143,7 @@ export type SharePayload = {
   note?: string;
   createdAt: string;
   revoked?: boolean;
-  doc: LedgerDoc | PeriodDoc;
+  doc: LedgerDoc | PeriodDoc | GuideDoc;
 };
 
 export type { ShareIndexEntry };
@@ -140,7 +186,7 @@ export async function createShare(input: {
   title: string;
   note?: string;
   by: string;
-  doc: LedgerDoc | PeriodDoc;
+  doc: LedgerDoc | PeriodDoc | GuideDoc;
 }): Promise<string> {
   const uid = await viewerId();
   const token = newToken();

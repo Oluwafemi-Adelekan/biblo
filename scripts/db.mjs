@@ -393,7 +393,7 @@ switch (cmd) {
     if (!title) die("Give the page a title.");
 
     const doc = JSON.parse(readFileSync(file, "utf8"));
-    if (doc.kind !== "ledger" && doc.kind !== "period") {
+    if (!["ledger", "period", "guide"].includes(doc.kind)) {
       die(`Unknown document kind: ${doc.kind}`);
     }
 

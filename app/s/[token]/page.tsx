@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "@phosphor-icons/react/ssr";
+import { ArrowLeft, ArrowUpRight, WarningDiamond, Moon } from "@phosphor-icons/react/ssr";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Wordmark } from "@/components/ui/Text";
@@ -8,6 +8,8 @@ import {
   readShare,
   type LedgerDoc,
   type PeriodDoc,
+  type GuideDoc,
+  type GuideDay,
   type SharedPerson,
   type SharedLine,
 } from "@/lib/share";
@@ -84,14 +86,17 @@ export default async function Shared({
           ) : (
             <Ledger doc={share.doc} token={token} />
           )
+        ) : share.doc.kind === "guide" ? (
+          <Guide doc={share.doc} />
         ) : (
           <Period doc={share.doc} />
         )}
 
         <footer className="mt-12 border-t border-rule pt-5">
           <p className="text-meta text-ink/55">
-            Anyone with this link can read this page. It does not change when
-            the books do, and it shows nothing else from them.
+            {share.doc.kind === "guide"
+              ? "Prices are what was paid on the trip this came from, in late 2026. Border fees in particular move, so take them as a guide, not a quote."
+              : "Anyone with this link can read this page. It does not change when the books do, and it shows nothing else from them."}
           </p>
           <Link
             href="/"
@@ -102,6 +107,169 @@ export default async function Shared({
         </footer>
       </main>
     </div>
+  );
+}
+
+/* --- a trip for other people to follow ------------------------
+   Read top to bottom the way the trip happens: what to sort before
+   leaving, the days in order, where to sleep, and the long way north
+   kept apart with its warning attached. */
+
+function Guide({ doc }: { doc: GuideDoc }) {
+  return (
+    <>
+      <p className="mt-5 max-w-[52ch] text-body leading-relaxed text-ink">{doc.summary}</p>
+
+      <dl className="mt-6 grid grid-cols-2 gap-px border-y border-rule bg-rule sm:grid-cols-4">
+        {doc.facts.map((f) => (
+          <div key={f.label} className="bg-bone px-3 py-3">
+            <dt className="text-label uppercase text-ink/50">{f.label}</dt>
+            <dd className="tnum mt-1 text-meta font-semibold text-ink">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <h2 className="mt-10 text-label uppercase text-ink/50">Before you leave</h2>
+      <div className="mt-3 grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        {doc.before.map((b) => (
+          <section key={b.title}>
+            <h3 className="text-meta font-semibold text-ink">{b.title}</h3>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {b.points.map((p) => (
+                <li key={p} className="flex gap-2 text-meta leading-relaxed text-ink/75">
+                  <span aria-hidden className="mt-[0.6em] size-1 shrink-0 bg-ink/40" />
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      <h2 className="mt-12 text-label uppercase text-ink/50">The days</h2>
+      <Days days={doc.days} />
+      {doc.short ? (
+        <p className="mt-4 border-l-2 border-ink/20 pl-3 text-meta leading-relaxed text-ink/70">
+          {doc.short}
+        </p>
+      ) : null}
+
+      <h2 className="mt-12 text-label uppercase text-ink/50">Where to stay</h2>
+      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        {doc.stays.map((st) => (
+          <a
+            key={st.url}
+            href={st.url}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex flex-col bg-bone-lift ring-1 ring-inset ring-ink/10 transition-colors hover:ring-ink/30"
+          >
+            {st.image ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={st.image}
+                alt={`The listing photo for ${st.name}`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                className="aspect-[16/10] w-full object-cover"
+              />
+            ) : null}
+            <span className="flex flex-1 flex-col p-4">
+              <span className="flex items-start justify-between gap-3">
+                <span className="text-body font-semibold text-ink">{st.name}</span>
+                {st.tag ? (
+                  <span className="shrink-0 bg-moss px-1.5 py-0.5 text-label uppercase text-bone">
+                    {st.tag}
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 text-meta text-ink/60">
+                {st.where} · sleeps {st.sleeps}
+              </span>
+              {st.listing ? <span className="mt-2 text-meta text-ink/50">{st.listing}</span> : null}
+              {st.note ? (
+                <span className="mt-2 text-meta leading-relaxed text-ink/75">{st.note}</span>
+              ) : null}
+              <span className="mt-auto flex items-center gap-1 pt-3 text-label uppercase text-ink/60 group-hover:text-ink">
+                See the listing <ArrowUpRight size={12} weight="bold" />
+              </span>
+            </span>
+          </a>
+        ))}
+      </div>
+
+      {doc.extension ? (
+        <>
+          <h2 className="mt-12 text-label uppercase text-ink/50">{doc.extension.title}</h2>
+          <p className="mt-1 text-meta text-ink/60">{doc.extension.adds}</p>
+          <p className="mt-3 flex gap-2 bg-ember/10 p-3 text-meta leading-relaxed text-ink ring-1 ring-inset ring-ember/40">
+            <WarningDiamond size={16} weight="fill" className="mt-0.5 shrink-0 text-ember" />
+            <span>{doc.extension.warning}</span>
+          </p>
+          <Days days={doc.extension.days} />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function Days({ days }: { days: GuideDay[] }) {
+  return (
+    <ol className="mt-3 flex flex-col">
+      {days.map((d) => (
+        <li
+          key={d.day}
+          className="grid grid-cols-[3.25rem_1fr] gap-x-3 border-t border-rule py-5 first:border-t-0"
+        >
+          <span className="text-label uppercase leading-tight text-ink/50">
+            Day
+            <span className="tnum mt-0.5 block text-title font-semibold normal-case tracking-normal text-ink">
+              {d.day}
+            </span>
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-body font-semibold text-ink">{d.title}</h3>
+            <ul className="mt-3 flex flex-col gap-3">
+              {d.stops.map((s) => (
+                <li key={s.name} className="text-meta leading-relaxed">
+                  <span className="flex flex-wrap items-baseline gap-x-2">
+                    {s.link ? (
+                      <a
+                        href={s.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-ink underline decoration-ink/30 underline-offset-2 hover:decoration-ink"
+                      >
+                        {s.name}
+                      </a>
+                    ) : (
+                      <span className="font-semibold text-ink">{s.name}</span>
+                    )}
+                    {s.cost ? <span className="tnum text-ink/50">{s.cost}</span> : null}
+                  </span>
+                  <span className="block text-ink/70">{s.what}</span>
+                  {s.warn ? (
+                    <span className="mt-1 flex gap-1.5 text-ink/80">
+                      <WarningDiamond
+                        size={14}
+                        weight="fill"
+                        className="mt-[0.2em] shrink-0 text-ember"
+                      />
+                      {s.warn}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {d.night ? (
+              <p className="mt-3 flex items-center gap-1.5 text-label uppercase text-ink/50">
+                <Moon size={12} weight="bold" /> {d.night}
+              </p>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 
