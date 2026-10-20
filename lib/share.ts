@@ -114,6 +114,12 @@ export type GuideDoc = {
   days: GuideDay[];
   stays: GuideStay[];
   extension?: { title: string; adds: string; warning: string; days: GuideDay[] };
+  /** What it costs each person, line by line, with the totals marked. */
+  budget?: {
+    intro: string;
+    rows: { item: string; each: string; strong?: boolean }[];
+    total?: string;
+  };
   short?: string;
 };
 

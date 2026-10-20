@@ -75,7 +75,7 @@ export default async function Shared({
         <h1 className="mt-7 text-title font-semibold text-ink">{share.title}</h1>
         <p className="mt-1 text-meta text-ink/60">Put together by {share.by}</p>
         {share.note ? (
-          <p className="mt-3 max-w-[48ch] text-meta leading-relaxed text-ink/75">
+          <p className="mt-3 text-meta leading-relaxed text-ink/75">
             {share.note}
           </p>
         ) : null}
@@ -118,7 +118,9 @@ export default async function Shared({
 function Guide({ doc }: { doc: GuideDoc }) {
   return (
     <>
-      <p className="mt-5 max-w-[52ch] text-body leading-relaxed text-ink">{doc.summary}</p>
+      {doc.summary ? (
+        <p className="mt-5 text-body leading-relaxed text-ink">{doc.summary}</p>
+      ) : null}
 
       <dl className="mt-6 grid grid-cols-2 gap-px border-y border-rule bg-rule sm:grid-cols-4">
         {doc.facts.map((f) => (
@@ -152,6 +154,27 @@ function Guide({ doc }: { doc: GuideDoc }) {
         <p className="mt-4 border-l-2 border-ink/20 pl-3 text-meta leading-relaxed text-ink/70">
           {doc.short}
         </p>
+      ) : null}
+
+      {doc.budget ? (
+        <>
+          <h2 className="mt-12 text-label uppercase text-ink/50">What it costs</h2>
+          <p className="mt-2 text-meta leading-relaxed text-ink/70">{doc.budget.intro}</p>
+          <dl className="mt-3 divide-y divide-rule border-y border-rule">
+            {doc.budget.rows.map((r) => (
+              <div
+                key={r.item}
+                className={`flex items-baseline justify-between gap-4 py-2.5 ${r.strong ? "bg-bone-lift px-3 -mx-3" : ""}`}
+              >
+                <dt className={`text-meta ${r.strong ? "font-semibold text-ink" : "text-ink/75"}`}>{r.item}</dt>
+                <dd className={`tnum shrink-0 text-right text-meta ${r.strong ? "font-semibold text-ink" : "text-ink"}`}>{r.each}</dd>
+              </div>
+            ))}
+          </dl>
+          {doc.budget.total ? (
+            <p className="mt-3 text-meta leading-relaxed text-ink/70">{doc.budget.total}</p>
+          ) : null}
+        </>
       ) : null}
 
       <h2 className="mt-12 text-label uppercase text-ink/50">Where to stay</h2>
