@@ -26,23 +26,36 @@ export function aiConfigured() {
   );
 }
 
+/* The model's answer is checked, but a right answer is never thrown
+   away over its spelling: "16,500" is a number, "true" is true, and a
+   note that runs long is cut, not rejected. Rejecting meant the whole
+   message went unfiled for a formatting slip. */
+const num = (s: z.ZodNumber) =>
+  z.preprocess((v) => (typeof v === "string" ? Number(v.replace(/[₦,\s]/g, "")) : v), s);
+const bool = z.preprocess((v) => (v === "true" ? true : v === "false" ? false : v), z.boolean());
+const cut = (n: number) => z.preprocess((v) => (typeof v === "string" ? v.slice(0, n) : v), z.string());
+const hhmm = z.preprocess(
+  (v) => (typeof v === "string" && /^\d:\d{2}$/.test(v) ? "0" + v : v),
+  z.string().regex(/^\d{2}:\d{2}$/),
+);
+
 const AiItem = z.object({
   name: z.string().min(1),
-  qty: z.number().positive().default(1),
-  unit: z.number().nonnegative(),
-  total: z.number().nonnegative(),
+  qty: num(z.number().positive()).default(1),
+  unit: num(z.number().nonnegative()),
+  total: num(z.number().nonnegative()),
 });
 
 const AiExpense = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  label: z.string().min(1).max(80),
-  amount: z.number().positive(),
+  time: hhmm.optional().catch(undefined),
+  label: cut(80).pipe(z.string().min(1)),
+  amount: num(z.number().positive()),
   categoryId: z.string(),
-  method: z.enum(["card", "transfer", "cash", "ussd", "direct-debit", "unknown"]).optional(),
-  note: z.string().max(300).optional(),
+  method: z.enum(["card", "transfer", "cash", "ussd", "direct-debit", "unknown"]).optional().catch("unknown"),
+  note: cut(300).optional(),
   /** Money coming back into a spend category rather than earned. */
-  refund: z.boolean().optional(),
+  refund: bool.optional(),
   items: z.array(AiItem).max(50).default([]),
 });
 
@@ -54,11 +67,11 @@ const AiEdit = z
     set: z
       .object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-        label: z.string().min(1).max(80).optional(),
-        amount: z.number().positive().optional(),
+        time: hhmm.optional(),
+        label: cut(80).pipe(z.string().min(1)).optional(),
+        amount: num(z.number().positive()).optional(),
         categoryId: z.string().optional(),
-        note: z.string().max(300).optional(),
+        note: cut(300).optional(),
         /** Full replacement for the entry's line items. */
         items: z.array(AiItem).max(50).optional(),
       })
@@ -98,7 +111,7 @@ const AiResult = z.object({
   verdict: z.enum(["file", "chat", "ask", "defer"]),
   reason: z.string().optional(),
   /** One line of context under an ask. */
-  detail: z.string().max(300).optional(),
+  detail: cut(300).optional(),
   expenses: z.array(AiExpense).max(20).default([]),
   edits: z.array(AiEdit).max(10).default([]),
   deletes: z.array(z.string().regex(/^exp_\d{3,}$/)).max(10).default([]),
@@ -107,7 +120,7 @@ const AiResult = z.object({
   budget: AiBudget.optional(),
   /** Categories to create, before anything here is filed into them. */
   newCategories: z.array(AiNewCategory).max(3).default([]),
-  reply: z.string().min(1).max(900),
+  reply: cut(900).pipe(z.string().min(1)),
 });
 
 export type AiEditT = z.infer<typeof AiEdit>;
@@ -212,6 +225,9 @@ FILING RULES
 - Never write an em dash or en dash in a reply. Use a comma, a colon or a full stop instead.
 - note is at most one short line of genuinely extra fact. Never quote, restate or summarise what he typed or dictated - he can already see his own message.
 - MONEY THAT ONLY PASSES THROUGH IS NOT FILED AT ALL. Money that lands in their account for someone else and goes straight out again, or that they pay on someone's behalf and get back immediately, never belonged to them: it is not spending, not income, and not a loan. File nothing for it and say so in the reply ("the 100,000 for her crypto only passed through, so it is not in your books"). A LOAN is different - that one sits in loans out until it is repaid. The test is time: money back within the day is pass-through; money you are waiting on is a loan.
+- FUEL HAS TWO HOMES. Fuel for the car is transport. Fuel for the generator, petrol for the house, is electricity. When they say "fuel" without saying car or generator, and neither the message nor the receipt settles it, do not guess silently: propose your best reading as an ask ("Was the 10,000 fuel for the generator?"). A filling-station receipt does not settle it, because generator fuel is bought there too. Vague car spending ("stuff for my car") is the same: fuel or maintenance is theirs to say, so ask.
+- MONEY SOMEONE SENDS THEM FOR A PURCHASE NETS OFF IT. Hakeem sends 13,500 for food and the food costs 16,500: file the 16,500 as food, and file Hakeem's 13,500 in food too with refund true, so the food costs them 3,000. Never drop the money they received, and never file it as income. Pass-through (below) is only money that goes on to someone else untouched.
+- EVERY FIGURE THEY GIVE IS ACCOUNTED FOR. Before you answer, go through their message figure by figure: each one is filed, split across entries that add up to it, or named in the reply with the reason it is not filed. A figure that silently disappears is the same as a wrong total.
 - MONEY COMING BACK IS NOT INCOME. A loan repaid, a refund for something returned, a friend settling their share of something you paid for - none of that is earnings. File it in the SAME spend category the money originally left from, with "refund": true, and a positive amount. A loan Timmy repays goes to the loans category with refund true, never to income. Income is only money genuinely earned: salary, a client paying, a gift received, interest. Getting this wrong makes someone look like they earned hundreds of thousands they did not.
 - family is for the PARENTS ONLY - money to Mum or Dad (Iyabode Toyin Adelekan is Mum; a remark saying "Father" is Dad). Siblings, cousins, friends and everyone else - Dara, Dami, Sope, Damola, Hakeem, Eniola, Kiki - are giving, whatever the occasion. When you see a loans category, money lent out that will come back (a loan to a friend) goes there, never to family or giving.
 - Say only what you did. If you are filing something in this turn, never say you left it unfiled; if you are not filing it, never say it is filed. Your reply and your expenses[] must agree - a reply that contradicts the action is worse than no reply at all.
@@ -232,7 +248,7 @@ RECEIPTS THAT ARE ONLY PARTLY THEIRS - AND CORRECTIONS
 - Changing an amount they typed themselves, or removing an entry from a past day, ALWAYS goes out as ask - the button, never silent filing. The app enforces this; propose the ask yourself so the question is in your own words.
 
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
-{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","refund":"true only when money is coming BACK into that category","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what they see"}`;
+{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","refund":true,"items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"reply":"what they see"}`;
 }
 
 export async function readWithAI(input: {
@@ -252,6 +268,8 @@ export async function readWithAI(input: {
   userName: string;
   /** Set on the second attempt, when the first one gave up. */
   insist?: boolean;
+  /** Figures from the message the first answer did not account for. */
+  missed?: number[];
 }): Promise<AiReading> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
@@ -313,6 +331,12 @@ ${t.text}
       },
       body: JSON.stringify({
         model: process.env.AZURE_OPENAI_DEPLOYMENT,
+        /* How hard the model thinks before answering. Splitting a
+           dictated day into entries is arithmetic, and the fast
+           setting drops figures. */
+        ...(process.env.AZURE_OPENAI_REASONING
+          ? { reasoning: { effort: process.env.AZURE_OPENAI_REASONING } }
+          : {}),
         tools: [{ type: "web_search" }],
         max_output_tokens: 4000,
         input: [
@@ -324,6 +348,11 @@ ${t.text}
                 ? `
 
 YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobody else will do it. Splitting a long receipt between two people, reading a photographed till roll, working out which lines belong to whom - that is the work, not a reason to defer. Do it now: file what you can read, and for anything you genuinely cannot make out, say which line it is and ask. "defer" is not an option.`
+                : "") +
+              (input.missed?.length
+                ? `
+
+YOUR FIRST ANSWER LEFT FIGURES OUT. These amounts from the message are in none of your entries and not in your reply: ${input.missed.map((n) => n.toLocaleString()).join(", ")}. Account for each one now: file it, split it, or say in the reply why it is not filed.`
                 : ""),
           },
           { role: "user", content },
@@ -339,18 +368,46 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
   let parsed: z.infer<typeof AiResult>;
   try {
     const body = await res.json();
-    const raw: string = (body?.output ?? [])
+    const texts: string[] = (body?.output ?? [])
       .filter((o: { type?: string }) => o.type === "message")
       .map((o: { content?: { text?: string }[] }) =>
         (o.content ?? []).map((c) => c.text ?? "").join(""),
-      )
-      .join("");
+      );
     /* Belt and braces: strip fences and take the outermost object,
        since prompt-enforced JSON can arrive with wrapping. */
-    const first = raw.indexOf("{");
-    const last = raw.lastIndexOf("}");
-    if (first < 0 || last <= first) throw new Error("no JSON in output");
-    parsed = AiResult.parse(JSON.parse(raw.slice(first, last + 1)));
+    const tryParse = (j: string) => {
+      try {
+        return AiResult.parse(JSON.parse(j));
+      } catch {
+        return undefined;
+      }
+    };
+    /* Every top-level {...} in the text, by brace depth outside strings. */
+    const objects = (raw: string) => {
+      const out: string[] = [];
+      let depth = 0, start = -1, inStr = false, esc = false;
+      for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (ch === "\\") esc = true;
+          else if (ch === '"') inStr = false;
+        } else if (ch === '"') inStr = true;
+        else if (ch === "{") {
+          if (depth++ === 0) start = i;
+        } else if (ch === "}" && depth > 0 && --depth === 0) out.push(raw.slice(start, i + 1));
+      }
+      return out;
+    };
+    const objectIn = (raw: string) => {
+      const first = raw.indexOf("{");
+      const last = raw.lastIndexOf("}");
+      if (first < 0 || last <= first) return undefined;
+      return tryParse(raw.slice(first, last + 1)) ?? objects(raw).reverse().map(tryParse).find(Boolean);
+    };
+    const found = [...texts].reverse().map(objectIn).find(Boolean) ?? objectIn(texts.join(""));
+    if (!found) throw new Error("no JSON in output");
+    parsed = found;
   } catch {
     return { kind: "defer", reason: "The assistant's answer did not parse." };
   }
@@ -431,6 +488,14 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
     }
   }
 
+  /* The check the model is told to do, done again in code: every
+     naira figure in the message lands in an entry, a split, or the
+     reply. One retry, then the answer stands as it is. */
+  if (!input.missed && input.text) {
+    const missed = unaccounted(input.text, parsed);
+    if (missed.length > 0) return readWithAI({ ...input, missed });
+  }
+
   if (parsed.verdict === "ask") {
     return {
       kind: "ask",
@@ -453,6 +518,41 @@ YOU ALREADY TRIED TO GIVE UP ON THIS ONE. There is no queue behind you and nobod
     newCategories: parsed.newCategories,
     reply: parsed.reply,
   };
+}
+
+/** Naira figures in what they typed: "13,500", "16k5", "1.8m", "10k".
+    Dollar amounts, times, dates and small counts are left out. */
+export function figures(text: string): number[] {
+  const out: number[] = [];
+  const re = /(\$|₦|N)?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s?(k|m)(\d{1,3})?)?(?![\d:\/])/gi;
+  for (const m of text.matchAll(re)) {
+    const [, cur, num, unit, tail] = m;
+    if (cur === "$") continue;
+    const before = text.slice(Math.max(0, m.index - 1), m.index);
+    if (/[\d:\/.]/.test(before)) continue;
+    let n = Number(num.replace(/,/g, ""));
+    if (unit?.toLowerCase() === "k") n = n * 1000 + (tail ? Number(tail.padEnd(3, "0")) : 0);
+    else if (unit?.toLowerCase() === "m") n = n * 1_000_000 + (tail ? Number(tail.padEnd(3, "0")) * 1000 : 0);
+    if (n < 500 || n === 2026 || n === 2025) continue;
+    out.push(Math.round(n));
+  }
+  return [...new Set(out)];
+}
+
+function unaccounted(text: string, r: z.infer<typeof AiResult>): number[] {
+  const amounts = [
+    ...r.expenses.map((e) => e.amount),
+    ...r.expenses.flatMap((e) => (e.items ?? []).map((i) => i.total)),
+    ...r.edits.map((e) => e.set.amount).filter((a): a is number => typeof a === "number"),
+  ].map((a) => Math.round(Math.abs(a)));
+  const seen = new Set(amounts);
+  for (let i = 0; i < amounts.length; i++)
+    for (let j = i + 1; j < amounts.length; j++) seen.add(amounts[i] + amounts[j]);
+  const said = new Set(figures(r.reply ?? ""));
+  const near = (n: number) => [...seen, ...said].some((a) => Math.abs(a - n) <= Math.max(100, n * 0.01));
+  // Edits and deletes point at entries already filed; figures there are not new money.
+  if (r.expenses.length === 0) return [];
+  return figures(text).filter((n) => !near(n));
 }
 
 export type { LineItem, Expense };

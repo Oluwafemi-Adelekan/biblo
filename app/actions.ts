@@ -349,15 +349,15 @@ async function processScoped(messageId: string) {
        ("in September"), a day ("3 September", "Sept 3"), a figure, or
        a word from the label, note or line items. */
     const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
-    const monthsSaid = MONTHS.map((name, i) => ({ i, hit: new RegExp(`\b${name.slice(0, 3)}(${name.slice(3)})?\b`).test(said) }))
+    const monthsSaid = MONTHS.map((name, i) => ({ i, hit: new RegExp(`\\b${name.slice(0, 3)}(${name.slice(3)})?\\b`).test(said) }))
       .filter((m) => m.hit).map((m) => String(m.i + 1).padStart(2, "0"));
-    const daysSaid = [...said.matchAll(/(d{1,2})(?:st|nd|rd|th)?s+(?:ofs+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*.?s+(d{1,2})/g)]
+    const daysSaid = [...said.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/g)]
       .map((m) => {
         const day = m[1] ?? m[4];
         const mon = String(MONTHS.findIndex((x) => x.startsWith(m[2] ?? m[3])) + 1).padStart(2, "0");
         return `-${mon}-${day.padStart(2, "0")}`;
       });
-    const idsSaid = new Set(said.match(/exp_d{3,}/g) ?? []);
+    const idsSaid = new Set(said.match(/exp_\d{3,}/g) ?? []);
     const recent = allExpenses.slice(0, 60);
     const recalled = allExpenses.slice(60).filter((e) => {
       if (idsSaid.has(e.id)) return true;
