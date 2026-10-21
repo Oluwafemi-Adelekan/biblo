@@ -166,6 +166,8 @@ export type MonthContext = {
   /** The budget in force for the month, by category id, and where it
    *  comes from, so a change names real ids and real figures. */
   budgetLines: string[];
+  /** The dollar rate they last gave in the chat, and when. */
+  usdRate?: { rate: number; said: string };
 };
 
 function prompt(categories: Category[], ctx: MonthContext, today: string, userName: string) {
@@ -196,6 +198,10 @@ ${ctx.categoryLines.map((l) => `- ${l}`).join("\n")}
 
 ALL TIME, since their first real record. This is complete and already added up by the app - the figures here are the truth. For ANY question beyond this month ("since I started", "so far", "who have I given the most", "my biggest payers", "how much has X cost me") answer from this section and never by adding up WHAT IS FILED below, which only holds the newest entries and will give a wrong total. When the question is about people, group the PEOPLE entries by the person, reading both label and note; money that came back from someone (refund) nets off what went to them; and say in a few words what you counted so they can check it. The sample month is not part of their records - never mention it.
 ${ctx.historyLines.map((l) => `- ${l}`).join("\n") || "- nothing yet"}
+
+DOLLAR RATE
+${ctx.usdRate ? `They last gave the rate as ₦${ctx.usdRate.rate.toLocaleString()} to the dollar (${ctx.usdRate.said}). Convert dollar money at that rate, unless this message gives a new one, which then wins. Put the dollar figure and the rate in note.` : "They have not given a rate yet. For dollar money, ask what rate to use."}
+The rate moves, so never take one from the web for their money.
 
 BUDGET
 ${ctx.budgetLines.map((l) => `- ${l}`).join("\n") || "- none set"}

@@ -327,6 +327,17 @@ async function processScoped(messageId: string) {
       ],
       historyLines: [] as string[],
       /* The last few turns, so "move that one" means something. */
+      /* The dollar rate moves, so it is whatever they last said it
+         was: "rate is 1347", "conversion rate we are using is 1,350". */
+      usdRate: (() => {
+        for (const x of [...messages].reverse()) {
+          if (x.from !== "you" || !x.text) continue;
+          const m = x.text.match(/(?:rate|conversion|exchange)[^0-9₦]{0,40}₦?\s?(\d{1,2},?\d{3}(?:\.\d+)?)/i);
+          const rate = m ? Number(m[1].replace(/,/g, "")) : NaN;
+          if (rate >= 300 && rate <= 10000) return { rate, said: x.at ? `said ${x.at.slice(0, 10)}` : "said earlier" };
+        }
+        return undefined;
+      })(),
       threadLines: messages
         .slice(-21, -1)
         .map((x) => {
