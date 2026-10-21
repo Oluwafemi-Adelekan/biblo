@@ -7,6 +7,7 @@ import { DesktopHeader } from "@/components/DesktopHeader";
 import { UpdateNudge } from "@/components/UpdateNudge";
 import { getSettings } from "@/lib/settings";
 import { getMonth } from "@/lib/data";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -41,7 +42,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   if ((await headers()).get(BARE)) {
     return (
       <html lang="en" className={archivo.variable}>
-        <body className="bg-sage-dim">{children}</body>
+        <body className="bg-sage-dim">
+          {children}
+          <Analytics />
+        </body>
       </html>
     );
   }
@@ -81,6 +85,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <BottomNav pending={pending} avatar={avatar} />
         </div>
         <UpdateNudge commit={(process.env.VERCEL_GIT_COMMIT_SHA ?? "local-dev").slice(0, 7)} />
+        <Analytics />
       </body>
     </html>
   );
