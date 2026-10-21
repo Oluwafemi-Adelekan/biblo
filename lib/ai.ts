@@ -530,7 +530,7 @@ YOUR FIRST ANSWER LEFT FIGURES OUT. These amounts from the message are in none o
     Dollar amounts, times, dates and small counts are left out. */
 export function figures(text: string): number[] {
   const out: number[] = [];
-  const re = /(\$|₦|N)?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s?(k|m)(\d{1,3})?)?(?![\d:\/])/gi;
+  const re = /(\$|₦|N)?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s?(k|m)(\d{1,3})?(?![a-z]))?(?![\d:\/])/gi;
   for (const m of text.matchAll(re)) {
     const [, cur, num, unit, tail] = m;
     if (cur === "$") continue;

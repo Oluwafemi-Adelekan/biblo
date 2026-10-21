@@ -660,8 +660,31 @@ export async function resolveApproval(id: string, approved: boolean) {
     edits: AiEditT[];
     deletes: string[];
   };
-  const touched = await applyProposal(p, ap.raw, "typed");
+  /* A card can sit open while the same money gets filed another way
+     (by hand, or from a later message). Approving it then would file
+     it twice, so anything already filed since the card was asked -
+     same day, same amount, same category - is skipped. */
+  const { getExpenses } = await import("@/lib/data");
+  const since = msg!.at;
+  const later = (await getExpenses()).filter((e) => (e.entry.at ?? "") > since);
+  const fresh = p.expenses.filter(
+    (x) =>
+      !later.some(
+        (e) =>
+          e.date === x.date &&
+          e.categoryId === x.categoryId &&
+          Math.abs(Math.abs(e.amountNGN) - x.amount) < 1,
+      ),
+  );
+  const skipped = p.expenses.length - fresh.length;
+  const touched = await applyProposal({ ...p, expenses: fresh }, ap.raw, "typed");
   await setMessageMeta(id, { approval: { ...ap, state: "approved" } });
+  if (skipped > 0) {
+    await addMessage({
+      from: "ai",
+      text: `${skipped} of those were already filed, so I left them out instead of adding them twice.`,
+    });
+  }
 
   const parts: string[] = [];
   if (p.expenses.length > 0)
