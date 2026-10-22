@@ -29,8 +29,10 @@ import {
   UploadSimple,
   X,
   ArrowRight,
+  ArrowLeft,
 } from "@phosphor-icons/react";
 import { dayLabel, naira } from "@/lib/format";
+import { allInOne } from "@/lib/approval";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
 import {
@@ -1179,9 +1181,25 @@ function Bubble({
 
       {/* A question that has been answered keeps its outcome. */}
       {m.meta?.approval && m.meta.approval.state !== "open" ? (
-        <span className="mt-1 px-0.5 text-label uppercase text-ink/40">
-          {m.meta.approval.state === "approved" ? "Approved" : "Left as is"}
-        </span>
+        m.meta.approval.steps && m.meta.approval.steps.length > 1 && m.meta.approval.answers ? (
+          /* A flow keeps every question with how it was answered. */
+          <ul className="mt-1.5 max-w-[85%] space-y-1 px-0.5">
+            {m.meta.approval.steps.map((st, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-meta text-ink/60">
+                {m.meta!.approval!.answers![i] ? (
+                  <Check size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/70" />
+                ) : (
+                  <X size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/40" />
+                )}
+                <span>{st.question}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="mt-1 px-0.5 text-label uppercase text-ink/40">
+            {m.meta.approval.state === "approved" ? "Approved" : "Left as is"}
+          </span>
+        )
       ) : null}
     </div>
   );
@@ -1434,13 +1452,46 @@ function ApprovalCard({ m }: { m: Message }) {
   const [said, setSaid] = useState("");
   const sayRef = useRef<HTMLTextAreaElement>(null);
 
-  const answer = (approved: boolean) => {
+  const p = ap.proposal as unknown as {
+    budget?: { month: string; income?: number; caps?: Record<string, number> };
+    newCategories?: { name: string; cap?: number }[];
+    expenses: { label?: string; amount?: number; categoryId?: string }[];
+    edits: { id: string; set: Record<string, unknown> }[];
+    deletes: string[];
+  };
+
+  /* The flow: one question at a time. A card from before the flow is
+     a single step that decides everything, exactly as it used to. */
+  const steps =
+    ap.steps && ap.steps.length > 0
+      ? ap.steps
+      : [allInOne(p, m.text ?? "", ap.detail)];
+  const [answers, setAnswers] = useState<boolean[]>([]);
+  const at = Math.min(answers.length, steps.length - 1);
+  const step = steps[at];
+  const many = steps.length > 1;
+
+  const answer = (yes: boolean) => {
     if (busy) return;
     feel();
-    setChoice(approved);
+    const next = [...answers, yes];
+    setDetailOpen(false);
+    if (next.length < steps.length) {
+      setAnswers(next);
+      return;
+    }
+    setChoice(yes);
+    setAnswers(next);
     start(async () => {
-      await resolveApproval(m.id, approved);
+      await resolveApproval(m.id, next);
     });
+  };
+
+  const back = () => {
+    if (busy || answers.length === 0) return;
+    feel();
+    setDetailOpen(false);
+    setAnswers(answers.slice(0, -1));
   };
 
   const say = () => {
@@ -1449,31 +1500,27 @@ function ApprovalCard({ m }: { m: Message }) {
     sentSound();
     setChoice("say");
     start(async () => {
-      await answerApproval(m.id, said);
+      await answerApproval(m.id, said, answers);
     });
   };
 
-  const p = ap.proposal as unknown as {
-    budget?: { month: string; income?: number; caps?: Record<string, number> };
-    newCategories?: { name: string; cap?: number }[];
-    expenses: { label?: string; amount?: number; categoryId?: string }[];
-    edits: { id: string; set: Record<string, unknown> }[];
-    deletes: string[];
-  };
+  // Only the changes this question decides.
   const lines = [
-    ...p.expenses.map(
+    ...step.expenses.map((i) => p.expenses[i]).filter(Boolean).map(
       (e) =>
         `File ${naira(Math.abs(Number(e.amount ?? 0)), { decimals: 0 })} · ${e.label ?? ""} → ${e.categoryId ?? ""}`,
     ),
-    ...p.edits.map(
+    ...step.edits.map((i) => p.edits[i]).filter(Boolean).map(
       (ed) =>
         `Update ${ed.id}: ${Object.entries(ed.set)
           .map(([k, v]) => `${k} → ${Array.isArray(v) ? `${v.length} items` : String(v)}`)
           .join(", ")}`,
     ),
-    ...p.deletes.map((d) => `Remove ${d}`),
-    ...(p.newCategories ?? []).map((c) => `New category ${c.name}${c.cap ? `, cap ${naira(c.cap, { decimals: 0 })}` : ""}`),
-    ...(p.budget
+    ...step.deletes.map((i) => p.deletes[i]).filter(Boolean).map((d) => `Remove ${d}`),
+    ...step.newCategories.map((i) => (p.newCategories ?? [])[i]).filter(Boolean).map(
+      (c) => `New category ${c.name}${c.cap ? `, cap ${naira(c.cap, { decimals: 0 })}` : ""}`,
+    ),
+    ...(step.budget && p.budget
       ? [
           `Budget for ${p.budget.month}: ${[
             p.budget.income !== undefined ? `income ${naira(p.budget.income, { decimals: 0 })}` : "",
@@ -1485,12 +1532,33 @@ function ApprovalCard({ m }: { m: Message }) {
 
   return (
     <div className="px-4 py-4 motion-safe:animate-[rise_200ms_var(--ease-out-strong)]">
-      <div className="flex items-start gap-3">
+      {many ? (
+        <div className="mb-2.5 flex items-center gap-3 pl-[30px]">
+          <span className="tnum text-label uppercase text-ink/50">
+            {at + 1} of {steps.length}
+          </span>
+          <span aria-hidden className="flex flex-1 gap-1">
+            {steps.map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-0.5 flex-1 transition-colors duration-press",
+                  i < answers.length ? "bg-ink/60" : i === at ? "bg-ink" : "bg-ink/15",
+                )}
+              />
+            ))}
+          </span>
+        </div>
+      ) : null}
+      <div
+        key={at}
+        className="flex items-start gap-3 motion-safe:animate-[rise_180ms_var(--ease-out-strong)]"
+      >
         <Question size={18} weight="bold" className="mt-0.5 shrink-0 text-ink/60" />
         <div className="min-w-0 flex-1">
-          <p className="text-body text-ink">{m.text}</p>
-          {ap.detail ? (
-            <p className="mt-1 text-meta text-ink/60">{ap.detail}</p>
+          <p className="text-body text-ink">{step.question}</p>
+          {step.detail ? (
+            <p className="mt-1 text-meta text-ink/60">{step.detail}</p>
           ) : null}
           {lines.length > 0 ? (
             <>
@@ -1568,7 +1636,7 @@ function ApprovalCard({ m }: { m: Message }) {
           ) : (
             <Check size={14} weight="bold" />
           )}
-          Go ahead
+          {many ? "Yes" : "Go ahead"}
         </button>
         <button
           type="button"
@@ -1581,7 +1649,7 @@ function ApprovalCard({ m }: { m: Message }) {
           ) : (
             <X size={14} weight="bold" />
           )}
-          Leave it
+          {many ? "No" : "Leave it"}
         </button>
         {!saying ? (
           <button
@@ -1595,6 +1663,16 @@ function ApprovalCard({ m }: { m: Message }) {
             className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"
           >
             Say something else
+          </button>
+        ) : null}
+        {answers.length > 0 && !busy ? (
+          <button
+            type="button"
+            onClick={back}
+            className="ml-auto inline-flex items-center gap-1.5 px-2 py-3 text-label uppercase text-ink/50 transition-colors duration-press hover:text-ink"
+          >
+            <ArrowLeft size={13} weight="bold" />
+            Back
           </button>
         ) : null}
       </div>

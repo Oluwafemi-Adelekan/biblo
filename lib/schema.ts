@@ -140,6 +140,23 @@ export const Message = z.object({
           }),
           /** The original message text, kept for entry.raw on filing. */
           raw: z.string().optional(),
+          /** The flow: one question at a time, each deciding only the
+           *  changes it names (positions in proposal). See lib/approval. */
+          steps: z
+            .array(
+              z.object({
+                question: z.string(),
+                detail: z.string().optional(),
+                expenses: z.array(z.number()).default([]),
+                edits: z.array(z.number()).default([]),
+                deletes: z.array(z.number()).default([]),
+                newCategories: z.array(z.number()).default([]),
+                budget: z.boolean().optional(),
+              }),
+            )
+            .optional(),
+          /** What each step was answered, once it was. */
+          answers: z.array(z.boolean()).optional(),
         })
         .optional(),
     })

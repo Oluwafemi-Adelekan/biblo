@@ -31,7 +31,8 @@ import {
   type AiExpenseT,
   type MonthContext,
 } from "@/lib/ai";
-import { Attachment } from "@/lib/schema";
+import { Attachment, type Message } from "@/lib/schema";
+import { allInOne, buildSteps, chosen, isEmpty, split, type Names, type Step } from "@/lib/approval";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
 
@@ -434,7 +435,9 @@ ${carriedNote}` : msg.text,
         timeZone: "Africa/Lagos",
       });
       const risky: string[] = [];
-      for (const ed of reading.edits) {
+      const riskySteps: Step[] = [];
+      const one = (): Omit<Step, "question"> => ({ expenses: [], edits: [], deletes: [], newCategories: [] });
+      for (const [i, ed] of reading.edits.entries()) {
         const cur = byId.get(ed.id);
         if (
           cur &&
@@ -445,14 +448,16 @@ ${carriedNote}` : msg.text,
           risky.push(
             `change "${cur.label}" (${cur.date}) from ${Math.abs(cur.amountNGN).toLocaleString()} to ${Math.abs(ed.set.amount).toLocaleString()}`,
           );
+          riskySteps.push({ ...one(), edits: [i], question: `Okay to ${risky[risky.length - 1]}?` });
         }
       }
-      for (const id of reading.deletes) {
+      for (const [i, id] of reading.deletes.entries()) {
         const cur = byId.get(id);
         if (cur && cur.date !== today) {
           risky.push(
             `remove "${cur.label}" (${Math.abs(cur.amountNGN).toLocaleString()}, ${cur.date})`,
           );
+          riskySteps.push({ ...one(), deletes: [i], question: `Okay to ${risky[risky.length - 1]}?` });
         }
       }
       if (risky.length > 0) {
@@ -468,6 +473,8 @@ ${carriedNote}` : msg.text,
           deletes: reading.deletes,
           budget: reading.budget,
           newCategories: reading.newCategories,
+          questions: riskySteps,
+          filedReply: `${reading.reply} The changes to earlier entries wait for your yes.`,
         };
       }
     }
@@ -492,28 +499,71 @@ ${carriedNote}` : msg.text,
     /* A question with the change attached. The composer becomes the
        card; a button applies or drops the proposal. */
     if (reading.kind === "ask") {
+      /* What the model was sure of is filed now; only what its
+         questions name waits, and the card asks those one at a time. */
+      const whole = {
+        expenses: reading.expenses,
+        edits: reading.edits,
+        deletes: reading.deletes,
+        budget: reading.budget,
+        newCategories: reading.newCategories,
+      };
+      const { now, held, asked } = split(whole, reading.questions);
+      const byId = new Map(allExpenses.map((e) => [e.id, e] as const));
+      const names: Names = {
+        category: (id) => cats.find((c) => c.id === id)?.name ?? id,
+        entry: (id) => {
+          const e = byId.get(id);
+          return e ? `"${e.label}" (${Math.abs(e.amountNGN).toLocaleString()}, ${e.date})` : undefined;
+        },
+      };
+      const steps =
+        reading.questions.length > 0
+          ? buildSteps(held, asked, names)
+          : [allInOne(held, reading.question, reading.detail)];
+
+      if (!isEmpty(now)) {
+        const touched = await applyProposal(
+          now,
+          msg.text,
+          images.length > 0 || documents.length > 0 ? "photo" : "typed",
+        );
+        await addMessage({
+          from: "ai",
+          text: reading.filedReply ?? reading.question,
+          expenseId: touched[0],
+          meta: touched.length > 1 ? { expenseIds: touched } : undefined,
+        });
+      }
+
       /* Card first, then close the question that raised it. The
          other order left one instant where nothing was pending and
          no card existed yet - a phone that polled at that instant
          stopped polling and sat on the thinking line forever. */
-      await addMessage({
-        from: "ai",
-        text: reading.question,
-        meta: {
-          approval: {
-            state: "open",
-            detail: reading.detail,
-            proposal: {
-              expenses: reading.expenses as unknown as Record<string, unknown>[],
-              edits: reading.edits as unknown as Record<string, unknown>[],
-              deletes: reading.deletes,
-              budget: reading.budget as unknown as Record<string, unknown> | undefined,
-              newCategories: reading.newCategories as unknown as Record<string, unknown>[],
+      if (steps.length > 0) {
+        await addMessage({
+          from: "ai",
+          text:
+            steps.length === 1
+              ? steps[0].question
+              : `${steps.length} quick questions`,
+          meta: {
+            approval: {
+              state: "open",
+              detail: steps.length === 1 ? steps[0].detail : undefined,
+              proposal: {
+                expenses: held.expenses as unknown as Record<string, unknown>[],
+                edits: held.edits as unknown as Record<string, unknown>[],
+                deletes: held.deletes,
+                budget: held.budget as unknown as Record<string, unknown> | undefined,
+                newCategories: held.newCategories as unknown as Record<string, unknown>[],
+              },
+              steps,
+              raw: msg.text,
             },
-            raw: msg.text,
           },
-        },
-      });
+        });
+      }
       await completeMessage(messageId);
       revalidatePath("/", "layout");
       return;
@@ -619,7 +669,7 @@ async function applyProposal(
  *  pressing a button. The held change is dropped as "answered", and
  *  the words go into the thread as a normal message, with the
  *  original question quoted so the reader knows what they refer to. */
-export async function answerApproval(id: string, text: string) {
+export async function answerApproval(id: string, text: string, answers: boolean[] = []) {
   const { getMessages } = await import("@/lib/data");
   const messages = await getMessages();
   const msg = messages.find((m) => m.id === id);
@@ -630,7 +680,11 @@ export async function answerApproval(id: string, text: string) {
   const said = text.trim();
   if (!said) return { ok: false as const, error: "Nothing to send." };
 
-  await setMessageMeta(id, { approval: { ...ap, state: "denied" } });
+  if (answers.some(Boolean)) {
+    await settle(msg!, answers, true);
+  } else {
+    await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
+  }
   const m = await addMessage({ from: "you", text: said, status: "pending" });
   if (aiConfigured()) after(() => processWithReader(m.id));
   revalidatePath("/", "layout");
@@ -639,7 +693,7 @@ export async function answerApproval(id: string, text: string) {
 
 /** The button on the approval card. Applies or drops the held
  *  change, then says what happened in the thread. */
-export async function resolveApproval(id: string, approved: boolean) {
+export async function resolveApproval(id: string, approved: boolean | boolean[]) {
   const { getMessages } = await import("@/lib/data");
   const messages = await getMessages();
   const msg = messages.find((m) => m.id === id);
@@ -647,19 +701,51 @@ export async function resolveApproval(id: string, approved: boolean) {
   if (!ap || ap.state !== "open") {
     return { ok: false as const, error: "That question is no longer open." };
   }
+  const steps = stepsOf(msg!);
+  const answers = steps.map((_, i) => (Array.isArray(approved) ? approved[i] === true : approved));
 
-  if (!approved) {
-    await setMessageMeta(id, { approval: { ...ap, state: "denied" } });
+  if (!answers.some(Boolean)) {
+    await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
     await addMessage({ from: "ai", text: "Okay, left it alone." });
     revalidatePath("/", "layout");
     return { ok: true as const };
   }
+  await settle(msg!, answers, false);
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+}
 
-  const p = ap.proposal as unknown as {
-    expenses: AiExpenseT[];
-    edits: AiEditT[];
-    deletes: string[];
-  };
+type Held = {
+  expenses: AiExpenseT[];
+  edits: AiEditT[];
+  deletes: string[];
+  budget?: AiBudgetT;
+  newCategories?: AiNewCategoryT[];
+};
+
+/** A card's steps; a card from before the flow is one step. */
+function stepsOf(msg: Message): Step[] {
+  const ap = msg.meta!.approval!;
+  const p = ap.proposal as unknown as Held;
+  return ap.steps?.length ? ap.steps : [allInOne(p, msg.text ?? "", ap.detail)];
+}
+
+/** Apply the changes whose question got a yes, and say what happened. */
+async function settle(msg: Message, answers: boolean[], quiet: boolean) {
+  const ap = msg.meta!.approval!;
+  const id = msg.id;
+  const steps = stepsOf(msg);
+  const p = chosen(ap.proposal as unknown as Held, steps, answers);
+  /* An expense only lands in a category that exists or was just
+     agreed to; one whose new category got a no waits for another go. */
+  const { getCategories } = await import("@/lib/data");
+  const slug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+  const known = new Set([
+    ...(await getCategories()).map((c) => c.id),
+    ...(p.newCategories ?? []).map((c) => slug(c.name)),
+  ]);
+  p.expenses = p.expenses.filter((e) => known.has(e.categoryId));
+  const left = answers.filter((a) => !a).length;
   /* A card can sit open while the same money gets filed another way
      (by hand, or from a later message). Approving it then would file
      it twice, so anything already filed since the card was asked -
@@ -678,7 +764,7 @@ export async function resolveApproval(id: string, approved: boolean) {
   );
   const skipped = p.expenses.length - fresh.length;
   const touched = await applyProposal({ ...p, expenses: fresh }, ap.raw, "typed");
-  await setMessageMeta(id, { approval: { ...ap, state: "approved" } });
+  await setMessageMeta(id, { approval: { ...ap, state: "approved", answers } });
   if (skipped > 0) {
     await addMessage({
       from: "ai",
@@ -693,14 +779,16 @@ export async function resolveApproval(id: string, approved: boolean) {
     parts.push(p.edits.length === 1 ? "updated the entry" : `updated ${p.edits.length} entries`);
   if (p.deletes.length > 0)
     parts.push(p.deletes.length === 1 ? "removed it" : `removed ${p.deletes.length} entries`);
+  if (p.budget) parts.push("changed the budget");
+  if (p.newCategories?.length) parts.push(p.newCategories.length === 1 ? "added the category" : "added the categories");
+  if (quiet && parts.length === 0) return;
+  const rest = left > 0 ? ` Left the other ${left === 1 ? "one" : left} alone.` : "";
   await addMessage({
     from: "ai",
-    text: `Done, ${parts.join(" and ")}.`,
+    text: parts.length ? `Done, ${parts.join(" and ")}.${rest}` : "Nothing new to file.",
     expenseId: touched[0],
     meta: touched.length > 1 ? { expenseIds: touched } : undefined,
   });
-  revalidatePath("/", "layout");
-  return { ok: true as const };
 }
 
 /* --- the profile screen ---------------------------------------- */
