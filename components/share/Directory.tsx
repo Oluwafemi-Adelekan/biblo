@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, ViewTransition } from "react";
 import Link from "next/link";
 import { ArrowUpRight, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
@@ -99,14 +99,17 @@ function OnPhoto({ item, from }: { item: Item; from: string }) {
   return (
     <Link
       href={href(item, from)}
+      transitionTypes={["nav-forward"]}
       className="group relative flex min-h-[30rem] flex-col justify-end overflow-hidden bg-moss text-bone"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={item.image}
-        alt={item.alt}
-        className="absolute inset-0 size-full object-cover transition-transform duration-500 ease-out-strong group-hover:scale-[1.03]"
-      />
+      <ViewTransition name={`guide-photo-${item.token}`} share="photo-morph" default="none">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={item.image}
+          alt={item.alt}
+          className="absolute inset-0 size-full object-cover transition-transform duration-500 ease-out-strong group-hover:scale-[1.03]"
+        />
+      </ViewTransition>
       <span
         aria-hidden
         className="absolute inset-0 bg-[linear-gradient(to_top,oklch(0.204_0.017_118/0.88)_0%,oklch(0.204_0.017_118/0.55)_38%,transparent_70%)]"

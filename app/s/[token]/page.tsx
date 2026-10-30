@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ViewTransition } from "react";
 import { ArrowLeft, ArrowUpRight, WarningDiamond, Moon } from "@phosphor-icons/react/ssr";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
@@ -61,6 +62,12 @@ export default async function Shared({
      document to read down. */
   if (share.doc.kind === "collection") {
     return (
+      <ViewTransition
+        key={token}
+        enter={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "page-fade" }}
+        exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "page-fade" }}
+        default="none"
+      >
       <div className="min-h-dvh bg-sage-dim">
         <main className="mx-auto max-w-[68rem] px-5 pb-16 pt-6 sm:px-9 sm:pt-10">
           <header className="flex items-center justify-between gap-4">
@@ -85,6 +92,7 @@ export default async function Shared({
           </footer>
         </main>
       </div>
+      </ViewTransition>
     );
   }
 
@@ -99,14 +107,24 @@ export default async function Shared({
   if (share.doc.kind === "guide") {
     const doc = share.doc;
     return (
+      <ViewTransition
+        key={token}
+        enter={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "page-fade" }}
+        exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "page-fade" }}
+        default="none"
+      >
       <div className="min-h-dvh bg-sage-dim">
         {doc.cover ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={doc.cover}
-            alt=""
-            className="block aspect-[4/3] max-h-[70vh] w-full object-cover sm:aspect-[21/9]"
-          />
+          /* The same photo as the card it was opened from: it grows
+             from the card into the cover instead of being replaced. */
+          <ViewTransition name={`guide-photo-${token}`} share="photo-morph" default="none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={doc.cover}
+              alt=""
+              className="block aspect-[4/3] max-h-[70vh] w-full object-cover sm:aspect-[21/9]"
+            />
+          </ViewTransition>
         ) : null}
         <div className="sticky top-0 z-10 border-b border-rule bg-sage-dim">
           <div className="mx-auto flex max-w-[44rem] items-center justify-between gap-4 px-5 py-3 sm:px-9">
@@ -114,6 +132,7 @@ export default async function Shared({
               {back ? (
                 <Link
                   href={`/s/${back}`}
+                  transitionTypes={["nav-back"]}
                   aria-label="Back to all the guides"
                   className="-ml-2 inline-flex size-8 shrink-0 items-center justify-center text-ink/70 hover:text-ink"
                 >
@@ -149,6 +168,7 @@ export default async function Shared({
           </footer>
         </main>
       </div>
+      </ViewTransition>
     );
   }
 

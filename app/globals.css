@@ -447,3 +447,88 @@ textarea::-webkit-scrollbar {
     }
   }
 }
+
+
+/* --- moving between pages ------------------------------------
+   Nothing cuts. Going deeper slides the new page in from the right
+   while the old one drifts left and fades; going back runs the other
+   way; anything without a direction (the phone's own back button) is
+   a soft crossfade. A guide's photo grows out of the card that opened
+   it. Old content leaves fast, new content arrives gently. */
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(.nav-forward) {
+  --slide-offset: -48px;
+  animation:
+    160ms ease-in both vt-fade reverse,
+    420ms var(--ease-out-strong) both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 64px;
+  animation:
+    260ms ease-out 120ms both vt-fade,
+    480ms var(--ease-out-strong) both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 48px;
+  animation:
+    160ms ease-in both vt-fade reverse,
+    420ms var(--ease-out-strong) both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -64px;
+  animation:
+    260ms ease-out 120ms both vt-fade,
+    480ms var(--ease-out-strong) both vt-slide;
+}
+::view-transition-old(.page-fade) {
+  animation: 180ms ease-in both vt-fade reverse;
+}
+::view-transition-new(.page-fade) {
+  animation: 280ms ease-out 80ms both vt-fade;
+}
+
+::view-transition-group(.photo-morph) {
+  animation-duration: 480ms;
+  animation-timing-function: var(--ease-out-strong);
+  z-index: 50;
+}
+::view-transition-image-pair(.photo-morph) {
+  animation-name: vt-soften;
+}
+
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+@keyframes vt-slide {
+  from {
+    translate: var(--slide-offset) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes vt-soften {
+  35% {
+    filter: blur(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
