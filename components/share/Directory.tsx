@@ -8,9 +8,8 @@ import type { CollectionDoc } from "@/lib/share";
 
 /* The front page of a set of guides. No navigation: a headline, a
    field to narrow the list, a chip per kind of trip, and a card per
-   guide that sells it in a line or two. Cards alternate between two
-   treatments, the photo framed above the words and the words laid on
-   the photo, so a short list still has a rhythm. */
+   guide that sells it in a line or two, its words laid on its photo.
+   Every card is the same card. */
 
 type Item = CollectionDoc["items"][number];
 
@@ -35,7 +34,7 @@ export function Directory({ doc, from }: { doc: CollectionDoc; from: string }) {
         <p className="mt-4 max-w-[52ch] text-body leading-relaxed text-ink/70">{doc.intro}</p>
       ) : null}
 
-      <label className="mt-8 flex items-center gap-3 border border-rule bg-bone-lift px-4 py-3 focus-within:border-ink/40">
+      <label className="mt-8 flex items-center gap-3 border border-rule bg-bone px-4 py-3 focus-within:border-ink/40">
         <MagnifyingGlass size={18} weight="bold" className="shrink-0 text-ink/50" />
         <input
           id="guide-search"
@@ -43,7 +42,7 @@ export function Directory({ doc, from }: { doc: CollectionDoc; from: string }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={doc.search ?? "Where would you like to go?"}
-          className="min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink/40 [&::-webkit-search-cancel-button]:hidden"
+          className="chat-field min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink/40 [&::-webkit-search-cancel-button]:hidden"
         />
         {query ? (
           <button
@@ -67,7 +66,7 @@ export function Directory({ doc, from }: { doc: CollectionDoc; from: string }) {
               aria-pressed={tag === t}
               className={cn(
                 "px-3.5 py-2.5 text-label uppercase transition-colors duration-press",
-                tag === t ? "bg-ink text-bone" : "bg-bone-lift text-ink/70 ring-1 ring-inset ring-ink/10 hover:text-ink",
+                tag === t ? "bg-ink text-bone" : "bg-bone text-ink/70 ring-1 ring-inset ring-ink/10 hover:text-ink",
               )}
             >
               {t ?? "All"}
@@ -78,13 +77,9 @@ export function Directory({ doc, from }: { doc: CollectionDoc; from: string }) {
 
       {shown.length > 0 ? (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {shown.map((item, i) =>
-            i % 2 === 0 ? (
-              <OnPhoto key={item.token} item={item} from={from} />
-            ) : (
-              <Framed key={item.token} item={item} from={from} />
-            ),
-          )}
+          {shown.map((item) => (
+            <OnPhoto key={item.token} item={item} from={from} />
+          ))}
         </div>
       ) : (
         <p className="mt-8 border-t border-rule pt-5 text-meta text-ink/60">
@@ -125,39 +120,7 @@ function OnPhoto({ item, from }: { item: Item; from: string }) {
         </span>
         <span className="mt-2 text-meta leading-relaxed text-bone/85">{item.story}</span>
         <span className="mt-3 text-meta font-medium">{item.meta}</span>
-        <span className="mt-4 flex items-center justify-center gap-2 bg-bone py-3.5 text-label uppercase text-ink transition-colors group-hover:bg-bone-lift">
-          Open the guide <ArrowUpRight size={13} weight="bold" />
-        </span>
-      </span>
-    </Link>
-  );
-}
-
-/* The photo framed above, the words below on the card. */
-function Framed({ item, from }: { item: Item; from: string }) {
-  return (
-    <Link
-      href={href(item, from)}
-      className="group flex flex-col bg-bone-lift p-2 ring-1 ring-inset ring-ink/10 transition-colors hover:ring-ink/30"
-    >
-      <span className="relative block aspect-[4/3] overflow-hidden bg-sage">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.image}
-          alt={item.alt}
-          className="size-full object-cover transition-transform duration-500 ease-out-strong group-hover:scale-[1.03]"
-        />
-      </span>
-      <span className="flex flex-1 flex-col px-3 pb-2 pt-4">
-        <span className="flex items-start justify-between gap-3">
-          <span className="text-title font-semibold text-ink">{item.title}</span>
-          <span className="shrink-0 px-2 py-1 text-label uppercase text-ink/70 ring-1 ring-inset ring-ink/20">
-            {item.tag}
-          </span>
-        </span>
-        <span className="mt-2 text-meta leading-relaxed text-ink/70">{item.story}</span>
-        <span className="mt-3 pb-4 text-meta font-medium text-ink">{item.meta}</span>
-        <span className="mt-auto flex translate-y-0 items-center justify-center gap-2 bg-ink py-3.5 text-label uppercase text-bone transition-colors group-hover:bg-moss-deep">
+        <span className="mt-4 flex items-center justify-center gap-2 bg-bone py-3.5 text-label uppercase text-ink transition-colors group-hover:bg-bone/90">
           Open the guide <ArrowUpRight size={13} weight="bold" />
         </span>
       </span>

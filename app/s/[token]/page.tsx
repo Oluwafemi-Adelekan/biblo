@@ -93,6 +93,65 @@ export default async function Shared({
   const home = from && from !== token ? await readShare(from) : null;
   const back = home?.doc.kind === "collection" ? from : undefined;
 
+  /* A guide reads like the app: the photo across the top with
+     nothing above it, then a bar with the title that stays put while
+     the page scrolls under it, all on the app's own sage ground. */
+  if (share.doc.kind === "guide") {
+    const doc = share.doc;
+    return (
+      <div className="min-h-dvh bg-sage-dim">
+        {doc.cover ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={doc.cover}
+            alt=""
+            className="block aspect-[4/3] max-h-[70vh] w-full object-cover sm:aspect-[21/9]"
+          />
+        ) : null}
+        <div className="sticky top-0 z-10 border-b border-rule bg-sage-dim">
+          <div className="mx-auto flex max-w-[44rem] items-center justify-between gap-4 px-5 py-3 sm:px-9">
+            <h1 className="flex min-w-0 items-center gap-1 text-title font-semibold text-ink">
+              {back ? (
+                <Link
+                  href={`/s/${back}`}
+                  aria-label="Back to all the guides"
+                  className="-ml-2 inline-flex size-8 shrink-0 items-center justify-center text-ink/70 hover:text-ink"
+                >
+                  <ArrowLeft size={18} weight="bold" />
+                </Link>
+              ) : null}
+              <span className="truncate">{share.title}</span>
+            </h1>
+            <span className="flex shrink-0 items-center gap-1">
+              <Logo size={22} className="text-ink" />
+              <Wordmark text="biblo" className="text-[1.05rem]" />
+            </span>
+          </div>
+        </div>
+        <main className="mx-auto max-w-[44rem] px-5 pb-12 pt-3 sm:px-9">
+          {/* Lined up with the title's words, not with the arrow. */}
+          <p className={`text-meta text-ink/60 ${back ? "pl-7" : ""}`}>Put together by {share.by}</p>
+          {share.note ? (
+            <p className="mt-3 text-meta leading-relaxed text-ink/75">{share.note}</p>
+          ) : null}
+          <Guide doc={doc} />
+          <footer className="mt-12 border-t border-rule pt-5">
+            <p className="text-meta text-ink/55">
+              {doc.footer ??
+                "Prices are what was paid on the trip this came from, in late 2026. Border fees in particular move, so take them as a guide, not a quote."}
+            </p>
+            <Link
+              href="/"
+              className="mt-3 inline-block text-meta font-medium text-ink underline underline-offset-4"
+            >
+              What is Biblo?
+            </Link>
+          </footer>
+        </main>
+      </div>
+    );
+  }
+
   /* One person's own page. The name is in the URL so it can be sent
      to them directly - the whole point is that someone who is not
      in this group's accounting should be able to open a link and
@@ -107,14 +166,6 @@ export default async function Shared({
   return (
     <div className="min-h-dvh bg-sage-dim py-6 sm:py-10">
       <main className="mx-auto max-w-[44rem] bg-bone px-5 py-8 shadow-[0_0_0_1px_var(--color-rule)] sm:px-9 sm:py-10">
-        {share.doc.kind === "guide" && share.doc.cover ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={share.doc.cover}
-            alt=""
-            className="-mx-5 -mt-8 mb-8 aspect-[16/9] w-[calc(100%+2.5rem)] max-w-none object-cover sm:-mx-9 sm:-mt-10 sm:mb-10 sm:w-[calc(100%+4.5rem)]"
-          />
-        ) : null}
         <header className="flex items-start justify-between gap-4">
           <span className="flex items-center gap-1">
             <Logo size={28} className="text-ink" />
@@ -128,18 +179,7 @@ export default async function Shared({
           </span>
         </header>
 
-        <h1 className="mt-7 flex items-center gap-2 text-title font-semibold text-ink">
-          {back ? (
-            <Link
-              href={`/s/${back}`}
-              aria-label="Back to all the guides"
-              className="-ml-1 inline-flex size-8 shrink-0 items-center justify-center text-ink/70 hover:text-ink"
-            >
-              <ArrowLeft size={18} weight="bold" />
-            </Link>
-          ) : null}
-          {share.title}
-        </h1>
+        <h1 className="mt-7 text-title font-semibold text-ink">{share.title}</h1>
         <p className="mt-1 text-meta text-ink/60">Put together by {share.by}</p>
         {share.note ? (
           <p className="mt-3 text-meta leading-relaxed text-ink/75">
@@ -153,18 +193,14 @@ export default async function Shared({
           ) : (
             <Ledger doc={share.doc} token={token} />
           )
-        ) : share.doc.kind === "guide" ? (
-          <Guide doc={share.doc} />
         ) : share.doc.kind === "period" ? (
           <Period doc={share.doc} />
         ) : null}
 
         <footer className="mt-12 border-t border-rule pt-5">
           <p className="text-meta text-ink/55">
-            {share.doc.kind === "guide"
-              ? share.doc.footer ??
-                "Prices are what was paid on the trip this came from, in late 2026. Border fees in particular move, so take them as a guide, not a quote."
-              : "Anyone with this link can read this page. It does not change when the books do, and it shows nothing else from them."}
+            Anyone with this link can read this page. It does not change when the books do, and it shows
+            nothing else from them.
           </p>
           <Link
             href="/"
@@ -250,7 +286,7 @@ function Guide({ doc }: { doc: GuideDoc }) {
             {doc.budget.rows.map((r) => (
               <div
                 key={r.item}
-                className={`flex items-baseline justify-between gap-4 py-2.5 ${r.strong ? "bg-bone-lift px-3 -mx-3" : ""}`}
+                className={`flex items-baseline justify-between gap-4 py-2.5 ${r.strong ? "bg-bone px-3 -mx-3" : ""}`}
               >
                 <dt className={`text-meta ${r.strong ? "font-semibold text-ink" : "text-ink/75"}`}>{r.item}</dt>
                 <dd className={`tnum shrink-0 text-right text-meta ${r.strong ? "font-semibold text-ink" : "text-ink"}`}>{r.each}</dd>
@@ -273,7 +309,7 @@ function Guide({ doc }: { doc: GuideDoc }) {
             href={st.url}
             target="_blank"
             rel="noreferrer"
-            className="group flex flex-col bg-bone-lift ring-1 ring-inset ring-ink/10 transition-colors hover:ring-ink/30"
+            className="group flex flex-col bg-bone ring-1 ring-inset ring-ink/10 transition-colors hover:ring-ink/30"
           >
             {st.image ? (
               /* eslint-disable-next-line @next/next/no-img-element */
