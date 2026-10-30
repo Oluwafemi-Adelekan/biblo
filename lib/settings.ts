@@ -13,7 +13,7 @@ import { profileRow, viewerId } from "./viewer";
 export type ShareIndexEntry = {
   token: string;
   title: string;
-  kind: "ledger" | "period" | "guide";
+  kind: "ledger" | "period" | "guide" | "collection";
   createdAt: string;
   revoked?: boolean;
 };

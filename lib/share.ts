@@ -121,6 +121,38 @@ export type GuideDoc = {
     total?: string;
   };
   short?: string;
+  /** A photo at the top of the page, from /public. */
+  cover?: string;
+  /** Places grouped by kind instead of laid out day by day: a city
+   *  guide where the order is the reader's to choose. */
+  sections?: { title: string; intro?: string; stops: GuideStop[] }[];
+  /** Heading over "before"; defaults to "Before you leave". */
+  beforeTitle?: string;
+  /** The small print at the bottom. */
+  footer?: string;
+};
+
+/** A front page for several guides: one link that opens onto all of
+ *  them, each as a card that tells its story in a line or two. */
+export type CollectionDoc = {
+  kind: "collection";
+  heading: string;
+  intro?: string;
+  /** Placeholder in the search field. */
+  search?: string;
+  items: {
+    /** The share token of the guide this card opens. */
+    token: string;
+    title: string;
+    story: string;
+    image: string;
+    /** What the photo shows, for anyone who cannot see it. */
+    alt: string;
+    /** "Road trip", "City": also the filter chips. */
+    tag: string;
+    /** One short line: "10 days · from Lagos". */
+    meta: string;
+  }[];
 };
 
 export type PeriodDoc = {
@@ -149,7 +181,7 @@ export type SharePayload = {
   note?: string;
   createdAt: string;
   revoked?: boolean;
-  doc: LedgerDoc | PeriodDoc | GuideDoc;
+  doc: LedgerDoc | PeriodDoc | GuideDoc | CollectionDoc;
 };
 
 export type { ShareIndexEntry };
@@ -192,7 +224,7 @@ export async function createShare(input: {
   title: string;
   note?: string;
   by: string;
-  doc: LedgerDoc | PeriodDoc | GuideDoc;
+  doc: LedgerDoc | PeriodDoc | GuideDoc | CollectionDoc;
 }): Promise<string> {
   const uid = await viewerId();
   const token = newToken();

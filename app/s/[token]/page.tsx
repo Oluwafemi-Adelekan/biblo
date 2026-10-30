@@ -10,10 +10,12 @@ import {
   type PeriodDoc,
   type GuideDoc,
   type GuideDay,
+  type GuideStop,
   type SharedPerson,
   type SharedLine,
 } from "@/lib/share";
 import { naira, dayLabel } from "@/lib/format";
+import { Directory } from "@/components/share/Directory";
 
 /* A page of someone's books, open to anyone holding the link.
    No session, no sign-in, nothing live: what it shows was written
@@ -27,10 +29,20 @@ export async function generateMetadata({
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const share = await readShare((await params).token);
+  /* The picture a link preview shows: a guide's cover, or the first
+     card's photo on a front page. */
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const pic =
+    share?.doc.kind === "collection"
+      ? share.doc.items[0]?.image
+      : share?.doc.kind === "guide"
+        ? share.doc.cover
+        : undefined;
   return {
     title: share ? `${share.title} · Biblo` : "Biblo",
     description: share?.note,
     robots: { index: false, follow: false },
+    openGraph: pic && host ? { images: [`https://${host}${pic}`] } : undefined,
   };
 }
 
@@ -39,11 +51,47 @@ export default async function Shared({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ who?: string }>;
+  searchParams: Promise<{ who?: string; from?: string }>;
 }) {
   const { token } = await params;
   const share = await readShare(token);
   if (!share) notFound();
+
+  /* A front page gets the whole width: it is a place to start, not a
+     document to read down. */
+  if (share.doc.kind === "collection") {
+    return (
+      <div className="min-h-dvh bg-sage-dim">
+        <main className="mx-auto max-w-[68rem] px-5 pb-16 pt-6 sm:px-9 sm:pt-10">
+          <header className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1">
+              <Logo size={28} className="text-ink" />
+              <Wordmark text="biblo" className="text-[1.3rem]" />
+            </span>
+            <span className="text-meta text-ink/60">Put together by {share.by}</span>
+          </header>
+          <Directory doc={share.doc} from={token} />
+          <footer className="mt-14 border-t border-rule pt-5">
+            <p className="text-meta text-ink/55">
+              Every guide here comes from a trip that was actually taken. Prices move, so check
+              the big ones before you go.
+            </p>
+            <Link
+              href="/"
+              className="mt-3 inline-block text-meta font-medium text-ink underline underline-offset-4"
+            >
+              What is Biblo?
+            </Link>
+          </footer>
+        </main>
+      </div>
+    );
+  }
+
+  /* Opened from a front page: the way back sits beside the title. */
+  const from = (await searchParams).from;
+  const home = from && from !== token ? await readShare(from) : null;
+  const back = home?.doc.kind === "collection" ? from : undefined;
 
   /* One person's own page. The name is in the URL so it can be sent
      to them directly - the whole point is that someone who is not
@@ -59,6 +107,14 @@ export default async function Shared({
   return (
     <div className="min-h-dvh bg-sage-dim py-6 sm:py-10">
       <main className="mx-auto max-w-[44rem] bg-bone px-5 py-8 shadow-[0_0_0_1px_var(--color-rule)] sm:px-9 sm:py-10">
+        {share.doc.kind === "guide" && share.doc.cover ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={share.doc.cover}
+            alt=""
+            className="-mx-5 -mt-8 mb-8 aspect-[16/9] w-[calc(100%+2.5rem)] max-w-none object-cover sm:-mx-9 sm:-mt-10 sm:mb-10 sm:w-[calc(100%+4.5rem)]"
+          />
+        ) : null}
         <header className="flex items-start justify-between gap-4">
           <span className="flex items-center gap-1">
             <Logo size={28} className="text-ink" />
@@ -72,7 +128,18 @@ export default async function Shared({
           </span>
         </header>
 
-        <h1 className="mt-7 text-title font-semibold text-ink">{share.title}</h1>
+        <h1 className="mt-7 flex items-center gap-2 text-title font-semibold text-ink">
+          {back ? (
+            <Link
+              href={`/s/${back}`}
+              aria-label="Back to all the guides"
+              className="-ml-1 inline-flex size-8 shrink-0 items-center justify-center text-ink/70 hover:text-ink"
+            >
+              <ArrowLeft size={18} weight="bold" />
+            </Link>
+          ) : null}
+          {share.title}
+        </h1>
         <p className="mt-1 text-meta text-ink/60">Put together by {share.by}</p>
         {share.note ? (
           <p className="mt-3 text-meta leading-relaxed text-ink/75">
@@ -88,14 +155,15 @@ export default async function Shared({
           )
         ) : share.doc.kind === "guide" ? (
           <Guide doc={share.doc} />
-        ) : (
+        ) : share.doc.kind === "period" ? (
           <Period doc={share.doc} />
-        )}
+        ) : null}
 
         <footer className="mt-12 border-t border-rule pt-5">
           <p className="text-meta text-ink/55">
             {share.doc.kind === "guide"
-              ? "Prices are what was paid on the trip this came from, in late 2026. Border fees in particular move, so take them as a guide, not a quote."
+              ? share.doc.footer ??
+                "Prices are what was paid on the trip this came from, in late 2026. Border fees in particular move, so take them as a guide, not a quote."
               : "Anyone with this link can read this page. It does not change when the books do, and it shows nothing else from them."}
           </p>
           <Link
@@ -131,7 +199,7 @@ function Guide({ doc }: { doc: GuideDoc }) {
         ))}
       </dl>
 
-      <h2 className="mt-10 text-label uppercase text-ink/50">Before you leave</h2>
+      <h2 className="mt-10 text-label uppercase text-ink/50">{doc.beforeTitle ?? "Before you leave"}</h2>
       <div className="mt-3 grid gap-x-8 gap-y-6 sm:grid-cols-2">
         {doc.before.map((b) => (
           <section key={b.title}>
@@ -148,8 +216,26 @@ function Guide({ doc }: { doc: GuideDoc }) {
         ))}
       </div>
 
-      <h2 className="mt-12 text-label uppercase text-ink/50">The days</h2>
-      <Days days={doc.days} />
+      {doc.sections?.map((sec) => (
+        <section key={sec.title}>
+          <h2 className="mt-12 text-label uppercase text-ink/50">{sec.title}</h2>
+          {sec.intro ? <p className="mt-2 text-meta leading-relaxed text-ink/70">{sec.intro}</p> : null}
+          <ul className="mt-3 flex flex-col divide-y divide-rule border-y border-rule">
+            {sec.stops.map((s) => (
+              <li key={s.name} className="py-4">
+                <Stop s={s} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      {doc.days.length > 0 ? (
+        <>
+          <h2 className="mt-12 text-label uppercase text-ink/50">The days</h2>
+          <Days days={doc.days} />
+        </>
+      ) : null}
       {doc.short ? (
         <p className="mt-4 border-l-2 border-ink/20 pl-3 text-meta leading-relaxed text-ink/70">
           {doc.short}
@@ -177,7 +263,9 @@ function Guide({ doc }: { doc: GuideDoc }) {
         </>
       ) : null}
 
+      {doc.stays.length > 0 ? (
       <h2 className="mt-12 text-label uppercase text-ink/50">Where to stay</h2>
+      ) : null}
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         {doc.stays.map((st) => (
           <a
@@ -233,6 +321,35 @@ function Guide({ doc }: { doc: GuideDoc }) {
         </>
       ) : null}
     </>
+  );
+}
+
+function Stop({ s }: { s: GuideStop }) {
+  return (
+    <div className="text-meta leading-relaxed">
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        {s.link ? (
+          <a
+            href={s.link}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-ink underline decoration-ink/30 underline-offset-2 hover:decoration-ink"
+          >
+            {s.name}
+          </a>
+        ) : (
+          <span className="font-semibold text-ink">{s.name}</span>
+        )}
+        {s.cost ? <span className="tnum text-ink/50">{s.cost}</span> : null}
+      </span>
+      <span className="block text-ink/70">{s.what}</span>
+      {s.warn ? (
+        <span className="mt-1 flex gap-1.5 text-ink/80">
+          <WarningDiamond size={14} weight="fill" className="mt-[0.2em] shrink-0 text-ember" />
+          {s.warn}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
