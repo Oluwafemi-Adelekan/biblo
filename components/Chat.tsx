@@ -32,7 +32,7 @@ import {
   ArrowLeft,
 } from "@phosphor-icons/react";
 import { dayLabel, naira } from "@/lib/format";
-import { allInOne } from "@/lib/approval";
+import { allInOne, optionsOf, picked, type Answer } from "@/lib/approval";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
 import {
@@ -1181,17 +1181,25 @@ function Bubble({
 
       {/* A question that has been answered keeps its outcome. */}
       {m.meta?.approval && m.meta.approval.state !== "open" ? (
-        m.meta.approval.steps && m.meta.approval.steps.length > 1 && m.meta.approval.answers ? (
+        m.meta.approval.steps && m.meta.approval.steps.length > 0 && m.meta.approval.answers?.length ? (
           /* A flow keeps every question with how it was answered. */
           <ul className="mt-1.5 max-w-[85%] space-y-1 px-0.5">
             {m.meta.approval.steps.map((st, i) => (
               <li key={i} className="flex items-start gap-1.5 text-meta text-ink/60">
-                {m.meta!.approval!.answers![i] ? (
+                {picked(st, m.meta!.approval!.answers![i]) ? (
                   <Check size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/70" />
                 ) : (
                   <X size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/40" />
                 )}
-                <span>{st.question}</span>
+                <span>
+                  {st.question}
+                  {typeof m.meta!.approval!.answers![i] === "number" ? (
+                    <span className="text-ink/85">
+                      {" "}
+                      {optionsOf(st)[m.meta!.approval!.answers![i] as number]?.label}
+                    </span>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>
@@ -1446,7 +1454,7 @@ function Reply({
 function ApprovalCard({ m }: { m: Message }) {
   const ap = m.meta!.approval!;
   const [busy, start] = useTransition();
-  const [choice, setChoice] = useState<boolean | "say" | null>(null);
+  const [choice, setChoice] = useState<number | "say" | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [saying, setSaying] = useState(false);
   const [said, setSaid] = useState("");
@@ -1466,21 +1474,25 @@ function ApprovalCard({ m }: { m: Message }) {
     ap.steps && ap.steps.length > 0
       ? ap.steps
       : [allInOne(p, m.text ?? "", ap.detail)];
-  const [answers, setAnswers] = useState<boolean[]>([]);
+  const [answers, setAnswers] = useState<Answer[]>([]);
   const at = Math.min(answers.length, steps.length - 1);
   const step = steps[at];
   const many = steps.length > 1;
 
-  const answer = (yes: boolean) => {
+  /* Every question carries its own answers - "Car" or "Generator",
+     "Personal shopping" or "Don't file it" - never a bare go-ahead. */
+  const options = optionsOf(step);
+
+  const answer = (pick: number) => {
     if (busy) return;
     feel();
-    const next = [...answers, yes];
+    const next = [...answers, pick];
     setDetailOpen(false);
     if (next.length < steps.length) {
       setAnswers(next);
       return;
     }
-    setChoice(yes);
+    setChoice(pick);
     setAnswers(next);
     start(async () => {
       await resolveApproval(m.id, next);
@@ -1625,32 +1637,42 @@ function ApprovalCard({ m }: { m: Message }) {
       ) : null}
 
       <div className="mt-3.5 flex flex-wrap items-center gap-2 pl-[30px]">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => answer(true)}
-          className="inline-flex items-center gap-2 bg-ink px-5 py-3 text-label uppercase text-bone transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60"
-        >
-          {busy && choice === true ? (
-            <CircleNotch size={14} weight="bold" className="animate-spin" />
+        {options.map((o, i) =>
+          o.skip ? (
+            <button
+              key={i}
+              type="button"
+              disabled={busy}
+              onClick={() => answer(i)}
+              className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"
+            >
+              {busy && choice === i ? (
+                <CircleNotch size={14} weight="bold" className="animate-spin" />
+              ) : (
+                <X size={14} weight="bold" />
+              )}
+              {o.label}
+            </button>
           ) : (
-            <Check size={14} weight="bold" />
-          )}
-          {many ? "Yes" : "Go ahead"}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => answer(false)}
-          className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"
-        >
-          {busy && choice === false ? (
-            <CircleNotch size={14} weight="bold" className="animate-spin" />
-          ) : (
-            <X size={14} weight="bold" />
-          )}
-          {many ? "No" : "Leave it"}
-        </button>
+            <button
+              key={i}
+              type="button"
+              disabled={busy}
+              onClick={() => answer(i)}
+              className={cn(
+                "inline-flex items-center gap-2 px-5 py-3 text-label uppercase transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60",
+                i === 0 ? "bg-ink text-bone" : "border border-ink/25 text-ink hover:border-ink/60",
+              )}
+            >
+              {busy && choice === i ? (
+                <CircleNotch size={14} weight="bold" className="animate-spin" />
+              ) : i === 0 ? (
+                <Check size={14} weight="bold" />
+              ) : null}
+              {o.label}
+            </button>
+          ),
+        )}
         {!saying ? (
           <button
             type="button"

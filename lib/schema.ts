@@ -147,6 +147,15 @@ export const Message = z.object({
               z.object({
                 question: z.string(),
                 detail: z.string().optional(),
+                options: z
+                  .array(
+                    z.object({
+                      label: z.string(),
+                      set: z.record(z.string(), z.unknown()).optional(),
+                      skip: z.boolean().optional(),
+                    }),
+                  )
+                  .optional(),
                 expenses: z.array(z.number()).default([]),
                 edits: z.array(z.number()).default([]),
                 deletes: z.array(z.number()).default([]),
@@ -156,7 +165,7 @@ export const Message = z.object({
             )
             .optional(),
           /** What each step was answered, once it was. */
-          answers: z.array(z.boolean()).optional(),
+          answers: z.array(z.union([z.boolean(), z.number()])).optional(),
         })
         .optional(),
     })

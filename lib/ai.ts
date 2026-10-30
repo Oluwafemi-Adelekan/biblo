@@ -129,6 +129,24 @@ const AiResult = z.object({
       z.object({
         q: cut(200).pipe(z.string().min(1)),
         detail: cut(300).optional(),
+        options: z
+          .array(
+            z.object({
+              label: cut(40).pipe(z.string().min(1)),
+              set: z
+                .object({
+                  categoryId: z.string().optional(),
+                  label: cut(80).optional(),
+                  amount: num(z.number().positive()).optional(),
+                  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+                  note: cut(300).optional(),
+                })
+                .optional(),
+              skip: bool.optional(),
+            }),
+          )
+          .max(4)
+          .optional(),
         expenses: z.array(num(z.number().int())).default([]),
         edits: z.array(num(z.number().int())).default([]),
         deletes: z.array(num(z.number().int())).default([]),
@@ -211,7 +229,7 @@ WHAT YOU CAN DO
 3. Change entries they ask you to change (verdict "file", edits[]): recategorise, rename, redate, correct an amount, add a note, or rewrite an entry's line items. For items, send the FULL corrected list - it replaces the old one entirely, so include every line, not just the ones you changed. Keep each line's qty, unit and total unchanged unless they correct a figure. Use the exact id from WHAT IS FILED. That list carries the newest entries plus any older one this message points to by name, amount, date or month, so an entry from weeks ago is editable as long as they say which one. Only edit when they clearly asked for it and you are confident which entry they mean. When ${userName} tells you what something is or what it should say, that IS the confirmation - make the edit right away; never defer to "verify" what they just told you. If checking a name or price on the web genuinely helps, search now, in this same turn, and file the result - never promise to look it up later.
 4. Delete entries (verdict "file", deletes[]): only when they clearly ask you to remove a specific entry, and only ids from WHAT IS FILED. If you are not certain which one they mean, ask first.
 5. Check before changing (verdict "ask"): when the next step is a concrete change you are ready to make but should confirm first - a guessed category, a delete they implied but did not confirm plainly, a correction you are not certain of - put the exact change in expenses/edits/deletes and make reply the question itself: ONE short line, like "File it under dining?". Optional detail: one sentence of context. They answer with a button, so the question must be strictly yes-or-no. Never use ask for conversation, for anything they already told you plainly (that is verdict file), or twice for the same thing.
-   ASK AS A FLOW, ONE QUESTION AT A TIME. They see your questions one after another, each with its own yes and no, so never bundle separate decisions into one line. Put them in questions[], in the order a person would think them through, each { "q": the yes-or-no question, "detail": optional one line, and the positions (from 0) of the changes it decides in expenses, edits, deletes, newCategories, plus "budget": true if it decides the budget change }. One question per decision: five duplicates of the same mistake are one decision, a fuel you cannot place and a category you guessed are two. Everything you are sure of goes in the same arrays but in NO question: it is filed the moment you answer, and reply says in one line what you filed ("Filed the groceries and the laundry.") or, when you filed nothing, a short lead-in ("Two things to check."). A doubtful change that no question names gets filed without asking, so never leave one out.
+   ASK AS A FLOW, ONE QUESTION AT A TIME. They see your questions one after another, each with its own yes and no, so never bundle separate decisions into one line. Put them in questions[], in the order a person would think them through, each { "q": the yes-or-no question, "detail": optional one line, and the positions (from 0) of the changes it decides in expenses, edits, deletes, newCategories, plus "budget": true if it decides the budget change }. Give every question its own answers in "options": the two to four replies a person would actually tap, as short button labels in their words, never "Go ahead" or "Leave it". Each option either takes the change as you proposed it, swaps a few fields with "set" (categoryId, label, amount, date, note), or files nothing with "skip": true. Where does fuel go: [{"label":"Car fuel","set":{"categoryId":"transport"}},{"label":"Generator fuel","set":{"categoryId":"electricity","label":"Generator fuel"}}]. Which category for a household repair: [{"label":"Personal shopping"},{"label":"Electricity and home","set":{"categoryId":"electricity"}},{"label":"Don't file it","skip":true}]. A real yes-or-no can be [{"label":"Yes, it was"},{"label":"No","skip":true}]. They can always type an answer instead, so the options only need to cover the likely ones. One question per decision: five duplicates of the same mistake are one decision, a fuel you cannot place and a category you guessed are two. Everything you are sure of goes in the same arrays but in NO question: it is filed the moment you answer, and reply says in one line what you filed ("Filed the groceries and the laundry.") or, when you filed nothing, a short lead-in ("Two things to check."). A doubtful change that no question names gets filed without asking, so never leave one out.
    STRONGLY PREFER ask over a typed clarifying question. If you can form ANY reasonable version of the change, propose that version as an ask and let the button settle it - do not interview them first. A typed question (verdict "chat") is only for when you cannot form a proposal at all. Long back-and-forths overwhelm; the button settles it.
 6. Photos, PDFs and CSV or text files are all yours to read - a PDF receipt or bank statement is filed exactly like a photo of one, every row of a CSV is read, none of it is deferred. A figure you genuinely cannot make out is not a defer either: say which one (verdict "chat") and ask for it. Budgets and categories are yours to change when they ask (verdict "file"). A budget change goes in budget: the month (YYYY-MM), and income and/or caps by category id - only the caps they named, the rest stay as they are. A month without its own budget runs on the standing budget (see BUDGET); changing that month gives it its own and leaves the others alone, while changing the standing month changes every month that relies on it, so say which you did. A new category goes in newCategories with a short name, spend or income, an icon from ${CATEGORY_ICONS.join(", ")}, and a cap if they gave one; in the same reply you can file into it and move entries into it, using the id you get by lowercasing the name and joining words with hyphens. Only change a budget or add a category when they asked for it. Shared pages for other people (a link for a trip, a statement to send to someone) are not yours to make; say the auditor publishes those. There is nothing you defer; verdict "defer" should not be used. Exports are real: when they ask for their data as a spreadsheet or CSV for some period, reply (verdict "chat") with a markdown link exactly like [Download your expenses](/api/export?from=2026-09-01&to=2026-09-30) using their dates, adding &category=<id> to narrow to one category - tapping it downloads the file. For anything visual - a report, a statement, graphs for a period - link [Your statement](/report?from=2026-09-01&to=2026-09-30) the same way with their dates; it is a print-ready page they can save as a PDF. CSV for raw data, the statement for eyes. Beyond that, never promise features the app does not have (reminders, PDF reports); say you will look into it.
 
@@ -277,7 +295,7 @@ RECEIPTS THAT ARE ONLY PARTLY THEIRS - AND CORRECTIONS
 - Changing an amount they typed themselves, or removing an entry from a past day, ALWAYS goes out as ask - the button, never silent filing. The app enforces this; propose the ask yourself so the question is in your own words.
 
 Your ENTIRE output must be exactly one JSON object - no markdown fences, no prose before or after it, even after a web search:
-{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","refund":true,"items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"questions":[{"q":"Was the 10,000 fuel for the generator?","expenses":[0]}],"reply":"what they see"}`;
+{"verdict":"file"|"chat"|"ask"|"defer","reason":"background note, only when deferring","detail":"one line of context under an ask, optional","expenses":[{"date":"YYYY-MM-DD","time":"HH:MM optional","label":"...","amount":1234,"categoryId":"...","method":"transfer optional","note":"optional","refund":true,"items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}],"edits":[{"id":"exp_0049","set":{"categoryId":"giving","items":[{"name":"...","qty":1,"unit":1234,"total":1234}]}}],"deletes":["exp_0050"],"questions":[{"q":"Where did the 10,000 fuel go?","expenses":[0],"options":[{"label":"Car","set":{"categoryId":"transport"}},{"label":"Generator","set":{"categoryId":"electricity","label":"Generator fuel"}}]}],"reply":"what they see"}`;
 }
 
 export async function readWithAI(input: {
@@ -535,7 +553,13 @@ YOUR FIRST ANSWER LEFT FIGURES OUT. These amounts from the message are in none o
       deletes: parsed.deletes,
       budget: parsed.budget,
       newCategories: parsed.newCategories,
-      questions: parsed.questions.map(({ q, ...rest }) => ({ question: q, ...rest })),
+      /* An option that would move money into a category that does not
+         exist is dropped; a question left with under two falls back
+         to yes and no. */
+      questions: parsed.questions.map(({ q, options, ...rest }) => {
+        const ok = (options ?? []).filter((o) => !o.set?.categoryId || known.has(o.set.categoryId));
+        return { question: q, ...rest, options: ok.length >= 2 ? ok : undefined };
+      }),
     };
   }
 

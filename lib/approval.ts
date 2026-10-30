@@ -5,9 +5,24 @@
    button that did not say what it was deciding. Shared by the server
    (building and applying) and the card (walking through it). */
 
+/** One button on a question. Picking it either makes the change as
+ *  proposed, makes it with a few fields swapped (set), or makes none
+ *  of it (skip). "Car" and "Generator" are two options on one fuel. */
+export type Option = {
+  label: string;
+  set?: { categoryId?: string; label?: string; amount?: number; date?: string; note?: string };
+  skip?: boolean;
+};
+
+/** What a question was answered: an option's position, or the old
+ *  plain yes and no. */
+export type Answer = number | boolean;
+
 export type Step = {
   question: string;
   detail?: string;
+  /** The answers to offer; none means a plain yes and no. */
+  options?: Option[];
   /** Positions in the proposal's arrays that this answer decides. */
   expenses: number[];
   edits: number[];
@@ -34,6 +49,20 @@ export type Names = {
 
 const naira = (v: number) => `₦${Math.round(Math.abs(v)).toLocaleString("en-NG")}`;
 const none = (): Omit<Step, "question"> => ({ expenses: [], edits: [], deletes: [], newCategories: [] });
+
+const YES_NO: Option[] = [{ label: "Yes" }, { label: "No", skip: true }];
+
+/** The buttons a question shows. */
+export function optionsOf(step: Step): Option[] {
+  return step.options && step.options.length >= 2 ? step.options : YES_NO;
+}
+
+/** The option an answer picked, or undefined for a no. */
+export function picked(step: Step, a: Answer | undefined): Option | undefined {
+  if (a === undefined || a === false) return undefined;
+  const opt = a === true ? optionsOf(step)[0] : optionsOf(step)[a];
+  return opt && !opt.skip ? opt : undefined;
+}
 
 /** The old single card: one question that decides everything. */
 export function allInOne(p: Proposal, question: string, detail?: string): Step {
@@ -89,6 +118,7 @@ export function buildSteps(p: Proposal, asked: Step[], names: Names): Step[] {
     const st: Step = {
       question: a.question,
       detail: a.detail,
+      options: a.options,
       expenses: keep(a.expenses, p.expenses.length, seen.expenses),
       edits: keep(a.edits, p.edits.length, seen.edits),
       deletes: keep(a.deletes, p.deletes.length, seen.deletes),
@@ -104,7 +134,12 @@ export function buildSteps(p: Proposal, asked: Step[], names: Names): Step[] {
 
   (p.newCategories ?? []).forEach((c, i) => {
     if (!seen.newCategories.has(i))
-      steps.push({ ...none(), newCategories: [i], question: `Add a new category, ${c.name}?` });
+      steps.push({
+        ...none(),
+        newCategories: [i],
+        question: `Add a new category, ${c.name}?`,
+        options: [{ label: "Add it" }, { label: "Don't add it", skip: true }],
+      });
   });
   p.expenses.forEach((e, i) => {
     if (!seen.expenses.has(i))
@@ -112,6 +147,7 @@ export function buildSteps(p: Proposal, asked: Step[], names: Names): Step[] {
         ...none(),
         expenses: [i],
         question: `File ${naira(Number(e.amount ?? 0))} for ${e.label ?? "this"} under ${names.category(e.categoryId ?? "")}?`,
+        options: [{ label: "File it" }, { label: "Don't file it", skip: true }],
       });
   });
   p.edits.forEach((ed, i) => {
@@ -120,13 +156,25 @@ export function buildSteps(p: Proposal, asked: Step[], names: Names): Step[] {
         ...none(),
         edits: [i],
         question: `Change ${names.entry(ed.id) ?? ed.id}: ${describe(ed.set, names)}?`,
+        options: [{ label: "Change it" }, { label: "Keep it as is", skip: true }],
       });
   });
   p.deletes.forEach((id, i) => {
     if (!seen.deletes.has(i))
-      steps.push({ ...none(), deletes: [i], question: `Remove ${names.entry(id) ?? id}?` });
+      steps.push({
+        ...none(),
+        deletes: [i],
+        question: `Remove ${names.entry(id) ?? id}?`,
+        options: [{ label: "Remove it" }, { label: "Keep it", skip: true }],
+      });
   });
-  if (p.budget && !budgetSeen) steps.push({ ...none(), budget: true, question: budgetQuestion(p.budget, names) });
+  if (p.budget && !budgetSeen)
+    steps.push({
+      ...none(),
+      budget: true,
+      question: budgetQuestion(p.budget, names),
+      options: [{ label: "Set it" }, { label: "Keep the budget", skip: true }],
+    });
   return steps;
 }
 
@@ -179,15 +227,28 @@ export function split<P extends Proposal>(p: P, asked: Step[]): { now: P; held: 
   };
 }
 
-/** Only the changes whose question got a yes. */
-export function chosen<P extends Proposal>(p: P, steps: Step[], answers: boolean[]): P {
-  const yes = steps.filter((_, i) => answers[i]);
+/** Only the changes whose question was answered with something other
+ *  than a no, each with the fields its chosen option swaps in. */
+export function chosen<P extends Proposal>(p: P, steps: Step[], answers: Answer[]): P {
+  const yes = steps.filter((s, i) => picked(s, answers[i]));
   const has = (key: "expenses" | "edits" | "deletes" | "newCategories", i: number) =>
     yes.some((s) => s[key].includes(i));
+  const swap = (key: "expenses" | "edits", i: number) => {
+    const at = steps.findIndex((s, n) => s[key].includes(i) && picked(s, answers[n]));
+    return at < 0 ? undefined : picked(steps[at], answers[at])?.set;
+  };
+  const clean = (set: Option["set"]) =>
+    Object.fromEntries(Object.entries(set ?? {}).filter(([, v]) => v !== undefined && v !== ""));
   return {
     ...p,
-    expenses: p.expenses.filter((_, i) => has("expenses", i)),
-    edits: p.edits.filter((_, i) => has("edits", i)),
+    expenses: p.expenses
+      .map((e, i) => ({ e, i }))
+      .filter(({ i }) => has("expenses", i))
+      .map(({ e, i }) => ({ ...e, ...clean(swap("expenses", i)) })),
+    edits: p.edits
+      .map((ed, i) => ({ ed, i }))
+      .filter(({ i }) => has("edits", i))
+      .map(({ ed, i }) => ({ ...ed, set: { ...ed.set, ...clean(swap("edits", i)) } })),
     deletes: p.deletes.filter((_, i) => has("deletes", i)),
     newCategories: (p.newCategories ?? []).filter((_, i) => has("newCategories", i)),
     budget: yes.some((s) => s.budget) ? p.budget : undefined,

@@ -32,7 +32,7 @@ import {
   type MonthContext,
 } from "@/lib/ai";
 import { Attachment, type Message } from "@/lib/schema";
-import { allInOne, buildSteps, chosen, isEmpty, split, type Names, type Step } from "@/lib/approval";
+import { allInOne, buildSteps, chosen, isEmpty, picked, split, type Answer, type Names, type Step } from "@/lib/approval";
 import { dayLabel, naira } from "@/lib/format";
 import { z } from "zod";
 
@@ -669,7 +669,7 @@ async function applyProposal(
  *  pressing a button. The held change is dropped as "answered", and
  *  the words go into the thread as a normal message, with the
  *  original question quoted so the reader knows what they refer to. */
-export async function answerApproval(id: string, text: string, answers: boolean[] = []) {
+export async function answerApproval(id: string, text: string, answers: Answer[] = []) {
   const { getMessages } = await import("@/lib/data");
   const messages = await getMessages();
   const msg = messages.find((m) => m.id === id);
@@ -680,7 +680,8 @@ export async function answerApproval(id: string, text: string, answers: boolean[
   const said = text.trim();
   if (!said) return { ok: false as const, error: "Nothing to send." };
 
-  if (answers.some(Boolean)) {
+  const steps = stepsOf(msg!);
+  if (steps.some((s, i) => picked(s, answers[i]))) {
     await settle(msg!, answers, true);
   } else {
     await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
@@ -693,7 +694,7 @@ export async function answerApproval(id: string, text: string, answers: boolean[
 
 /** The button on the approval card. Applies or drops the held
  *  change, then says what happened in the thread. */
-export async function resolveApproval(id: string, approved: boolean | boolean[]) {
+export async function resolveApproval(id: string, approved: boolean | Answer[]) {
   const { getMessages } = await import("@/lib/data");
   const messages = await getMessages();
   const msg = messages.find((m) => m.id === id);
@@ -702,9 +703,11 @@ export async function resolveApproval(id: string, approved: boolean | boolean[])
     return { ok: false as const, error: "That question is no longer open." };
   }
   const steps = stepsOf(msg!);
-  const answers = steps.map((_, i) => (Array.isArray(approved) ? approved[i] === true : approved));
+  const answers: Answer[] = steps.map((_, i) =>
+    Array.isArray(approved) ? (approved[i] ?? false) : approved,
+  );
 
-  if (!answers.some(Boolean)) {
+  if (!steps.some((s, i) => picked(s, answers[i]))) {
     await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
     await addMessage({ from: "ai", text: "Okay, left it alone." });
     revalidatePath("/", "layout");
@@ -731,7 +734,7 @@ function stepsOf(msg: Message): Step[] {
 }
 
 /** Apply the changes whose question got a yes, and say what happened. */
-async function settle(msg: Message, answers: boolean[], quiet: boolean) {
+async function settle(msg: Message, answers: Answer[], quiet: boolean) {
   const ap = msg.meta!.approval!;
   const id = msg.id;
   const steps = stepsOf(msg);
@@ -745,7 +748,7 @@ async function settle(msg: Message, answers: boolean[], quiet: boolean) {
     ...(p.newCategories ?? []).map((c) => slug(c.name)),
   ]);
   p.expenses = p.expenses.filter((e) => known.has(e.categoryId));
-  const left = answers.filter((a) => !a).length;
+  const left = steps.filter((s, i) => !picked(s, answers[i])).length;
   /* A card can sit open while the same money gets filed another way
      (by hand, or from a later message). Approving it then would file
      it twice, so anything already filed since the card was asked -
