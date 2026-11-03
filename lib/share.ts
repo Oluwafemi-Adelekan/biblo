@@ -82,6 +82,10 @@ export type GuideStop = {
   cost?: string;
   /** Something to watch for. */
   warn?: string;
+  /** When it is open, e.g. "Wed to Mon, 10am to 6pm. Closed Tuesdays." */
+  hours?: string;
+  /** A number to call or book on, as written locally. */
+  phone?: string;
   link?: string;
 };
 

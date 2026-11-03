@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ViewTransition } from "react";
-import { ArrowLeft, ArrowUpRight, WarningDiamond, Moon } from "@phosphor-icons/react/ssr";
+import { ArrowLeft, ArrowUpRight, Clock, Moon, Phone, WarningDiamond } from "@phosphor-icons/react/ssr";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Wordmark } from "@/components/ui/Text";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/share";
 import { naira, dayLabel } from "@/lib/format";
 import { Directory } from "@/components/share/Directory";
+import { GuideBar } from "@/components/share/GuideBar";
 
 /* A page of someone's books, open to anyone holding the link.
    No session, no sign-in, nothing live: what it shows was written
@@ -126,8 +127,7 @@ export default async function Shared({
             />
           </ViewTransition>
         ) : null}
-        <div className="sticky top-0 z-10 border-b border-rule bg-sage-dim">
-          <div className="mx-auto flex max-w-[44rem] items-center justify-between gap-4 px-5 py-3 sm:px-9">
+        <GuideBar by={share.by} indent={!!back}>
             <h1 className="flex min-w-0 items-center gap-1 text-title font-semibold text-ink">
               {back ? (
                 <Link
@@ -145,11 +145,8 @@ export default async function Shared({
               <Logo size={22} className="text-ink" />
               <Wordmark text="biblo" className="text-[1.05rem]" />
             </span>
-          </div>
-        </div>
-        <main className="mx-auto max-w-[44rem] px-5 pb-12 pt-3 sm:px-9">
-          {/* Lined up with the title's words, not with the arrow. */}
-          <p className={`text-meta text-ink/60 ${back ? "pl-7" : ""}`}>Put together by {share.by}</p>
+        </GuideBar>
+        <main className="mx-auto max-w-[44rem] px-5 pb-12 pt-1 sm:px-9">
           {share.note ? (
             <p className="mt-3 text-meta leading-relaxed text-ink/75">{share.note}</p>
           ) : null}
@@ -399,6 +396,25 @@ function Stop({ s }: { s: GuideStop }) {
         {s.cost ? <span className="tnum text-ink/50">{s.cost}</span> : null}
       </span>
       <span className="block text-ink/70">{s.what}</span>
+      {s.hours || s.phone ? (
+        <span className="mt-1.5 flex flex-col gap-1 text-ink/80">
+          {s.hours ? (
+            <span className="flex gap-1.5">
+              <Clock size={14} weight="bold" className="mt-[0.2em] shrink-0 text-ink/50" />
+              {s.hours}
+            </span>
+          ) : null}
+          {s.phone ? (
+            <a
+              href={`tel:${s.phone.replace(/[^\d+]/g, "")}`}
+              className="tnum flex w-fit gap-1.5 underline decoration-ink/30 underline-offset-2 hover:decoration-ink"
+            >
+              <Phone size={14} weight="bold" className="mt-[0.2em] shrink-0 text-ink/50" />
+              {s.phone}
+            </a>
+          ) : null}
+        </span>
+      ) : null}
       {s.warn ? (
         <span className="mt-1 flex gap-1.5 text-ink/80">
           <WarningDiamond size={14} weight="fill" className="mt-[0.2em] shrink-0 text-ember" />
