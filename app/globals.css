@@ -532,15 +532,3 @@ textarea::-webkit-scrollbar {
     animation-delay: 0s !important;
   }
 }
-
-/* --- the phone's edges ------------------------------------------
-   On a phone the app column ends in the cream bottom bar, but iOS
-   can show the page ground under it: the home-indicator strip, or a
-   rubber-band pull. The ground matches the edge it shows through,
-   sage at the top behind the status bar, the bar's cream below. */
-@media (max-width: 430px) {
-  html:has(body.app-ground),
-  body.app-ground {
-    background: linear-gradient(to bottom, var(--color-sage) 50%, var(--color-bone) 50%);
-  }
-}
