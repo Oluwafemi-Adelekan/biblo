@@ -14,9 +14,9 @@ export type Option = {
   skip?: boolean;
 };
 
-/** What a question was answered: an option's position, or the old
- *  plain yes and no. */
-export type Answer = number | boolean;
+/** What a question was answered: an option's position, the old
+ *  plain yes and no, or the words they typed instead of a button. */
+export type Answer = number | boolean | string;
 
 export type Step = {
   question: string;
@@ -59,7 +59,7 @@ export function optionsOf(step: Step): Option[] {
 
 /** The option an answer picked, or undefined for a no. */
 export function picked(step: Step, a: Answer | undefined): Option | undefined {
-  if (a === undefined || a === false) return undefined;
+  if (a === undefined || a === false || typeof a === "string") return undefined;
   const opt = a === true ? optionsOf(step)[0] : optionsOf(step)[a];
   return opt && !opt.skip ? opt : undefined;
 }

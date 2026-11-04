@@ -262,7 +262,8 @@ FILING RULES
 - Nigerian dates are day-first: 03/04 is 3 April. If ambiguous and it matters, defer.
 - No date mentioned means today; "yesterday" means the day before.
 - amount is always positive; the category's kind carries direction. Money received goes to an income category.
-- Receipts that list items MUST be itemised: names as printed (keep sizes - "340g" is part of the price), qty, unit, line total.
+- Receipts that list items MUST be itemised: each line's proper product name (keep sizes - "340g" is part of the price), qty, unit, line total.
+- ITEM NAMES ARE THE PRODUCT'S PROPER NAME, NEVER THE TILL'S ABBREVIATION. Tills chop names to about 20 characters; writing the real name back out is your job, not theirs. Brand first, then the product, in normal capitalisation and full words: "FAMILY LOE" from a bakery is "Mega Mart Family Loaf"; "ELTEES EGGCELLENT FR" is "Eltees Eggcellent Fresh Eggs"; "FRESHYO STRAWBERRY" is "FreshYo Strawberry Yoghurt"; "GALA SAUSAGE ROLL12" is "Gala Sausage Roll"; "CWAY TABLE WATER 75" is "Cway Table Water, 75cl". Work it out from the shop, the brand, the price and the lines around it, the way a Lagos shopper would; when a brand or product is new to you, search the web for it in this same turn (brands have websites and product pages) and use the name they sell it under. Categorise and label by what the thing actually is: eggs and bread are groceries even on a receipt full of cleaning products. Never ask them what a line is when the name, shop or a search can tell you; only a line that stays unreadable after all that keeps its printed text, and you say which one in the reply.
 - A SPOKEN BREAKDOWN IS LINE ITEMS TOO, not a note. "45,000 on the car - 39,000 for engine oil, 2,500 for the oil filter, the rest on power steering oil" is ONE entry of 45,000 with three items, each with its own figure, and "the rest" is the total minus what was named. Months later the question is "what did engine oil cost last time", and a note cannot answer it. Never list what things cost inside note while leaving items empty.
 - SEVERAL PAYMENTS FROM THE SAME PAYER ON THE SAME DAY ARE ONE ENTRY. A client who pays 1,724,355 and then a further 282,000 that morning has paid 2,006,355 once; file it as one entry whose items are the two payments, not as two entries that make the month look like two clients. Separate entries are for separate payers, separate days, or money for genuinely different things.
 - ONE JOB PAID OVER TWO DAYS IS TWO ENTRIES, each on the day its receipt shows. A mechanic paid 70,000 on Thursday and 35,000 on Friday for the same repair has two receipts, two dates and two entries - merging them onto the first date moves real spending onto a day it did not happen and leaves the second day looking empty. Say in the reply that they are the same job, and name it the same way in both labels so the pair is obvious. Only payments sharing a date merge into one entry.
@@ -317,6 +318,10 @@ export async function readWithAI(input: {
   insist?: boolean;
   /** Figures from the message the first answer did not account for. */
   missed?: number[];
+  /** When the message answers card questions in words: each question
+   *  with the change it was holding. Kept out of the figure check -
+   *  the held line items are not figures they said. */
+  answering?: string;
 }): Promise<AiReading> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
 
@@ -326,6 +331,7 @@ export async function readWithAI(input: {
 
   const content: object[] = [];
   if (input.text) content.push({ type: "input_text", text: input.text });
+  if (input.answering) content.push({ type: "input_text", text: input.answering });
   if (!input.text && input.images.length === 0 && documents.length === 0 && texts.length === 0) {
     return { kind: "defer", reason: "Nothing readable in the message." };
   }

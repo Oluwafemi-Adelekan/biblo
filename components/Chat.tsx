@@ -18,6 +18,7 @@ import {
   ArrowUp,
   Camera,
   CaretDown,
+  ChatCircleText,
   Check,
   CircleNotch,
   FileText,
@@ -36,7 +37,6 @@ import { allInOne, optionsOf, picked, type Answer } from "@/lib/approval";
 import { Sheet } from "@/components/ui/Sheet";
 import { Label } from "@/components/ui/Text";
 import {
-  answerApproval,
   prepareUploads,
   reclaimStale,
   resolveApproval,
@@ -1186,7 +1186,9 @@ function Bubble({
           <ul className="mt-1.5 max-w-[85%] space-y-1 px-0.5">
             {m.meta.approval.steps.map((st, i) => (
               <li key={i} className="flex items-start gap-1.5 text-meta text-ink/60">
-                {picked(st, m.meta!.approval!.answers![i]) ? (
+                {typeof m.meta!.approval!.answers![i] === "string" ? (
+                  <ChatCircleText size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/70" />
+                ) : picked(st, m.meta!.approval!.answers![i]) ? (
                   <Check size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/70" />
                 ) : (
                   <X size={13} weight="bold" className="mt-[0.2em] shrink-0 text-ink/40" />
@@ -1197,6 +1199,11 @@ function Bubble({
                     <span className="text-ink/85">
                       {" "}
                       {optionsOf(st)[m.meta!.approval!.answers![i] as number]?.label}
+                    </span>
+                  ) : typeof m.meta!.approval!.answers![i] === "string" ? (
+                    <span className="text-ink/85">
+                      {" "}
+                      You said: {m.meta!.approval!.answers![i] as string}
                     </span>
                   ) : null}
                 </span>
@@ -1456,8 +1463,6 @@ function ApprovalCard({ m }: { m: Message }) {
   const [busy, start] = useTransition();
   const [choice, setChoice] = useState<number | "say" | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [saying, setSaying] = useState(false);
-  const [said, setSaid] = useState("");
   const sayRef = useRef<HTMLTextAreaElement>(null);
 
   const p = ap.proposal as unknown as {
@@ -1483,37 +1488,49 @@ function ApprovalCard({ m }: { m: Message }) {
      "Personal shopping" or "Don't file it" - never a bare go-ahead. */
   const options = optionsOf(step);
 
-  const answer = (pick: number) => {
+  /* Typed words belong to the question they were typed on. Each step
+     keeps its own draft, so moving on starts blank and going back
+     finds what was written there. */
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [sayingAt, setSayingAt] = useState<number | null>(null);
+  const said = drafts[at] ?? "";
+  const saying = sayingAt === at;
+  const setSaid = (v: string) => setDrafts((d) => ({ ...d, [at]: v }));
+
+  /* Every answer, a button or words, settles this question and moves
+     to the next; only the last one sends the lot. */
+  const advance = (value: Answer, mark: number | "say") => {
     if (busy) return;
     feel();
-    const next = [...answers, pick];
+    const next = [...answers, value];
     setDetailOpen(false);
     if (next.length < steps.length) {
       setAnswers(next);
+      setSayingAt(drafts[next.length]?.trim() ? next.length : null);
       return;
     }
-    setChoice(pick);
+    setChoice(mark);
     setAnswers(next);
     start(async () => {
       await resolveApproval(m.id, next);
     });
   };
 
+  const answer = (pick: number) => advance(pick, pick);
+
   const back = () => {
     if (busy || answers.length === 0) return;
     feel();
     setDetailOpen(false);
+    const prev = answers.length - 1;
+    setSayingAt(typeof answers[prev] === "string" ? prev : null);
     setAnswers(answers.slice(0, -1));
   };
 
   const say = () => {
     if (busy || !said.trim()) return;
-    feel();
     sentSound();
-    setChoice("say");
-    start(async () => {
-      await answerApproval(m.id, said, answers);
-    });
+    advance(said.trim(), "say");
   };
 
   // Only the changes this question decides.
@@ -1623,11 +1640,13 @@ function ApprovalCard({ m }: { m: Message }) {
               type="button"
               disabled={busy || !said.trim()}
               onClick={say}
-              aria-label="Send"
+              aria-label={at < steps.length - 1 ? "Answer and go to the next question" : "Send"}
               className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-bone transition-transform duration-press ease-out-strong active:scale-[0.92] disabled:opacity-40"
             >
               {busy && choice === "say" ? (
                 <CircleNotch size={15} weight="bold" className="animate-spin" />
+              ) : at < steps.length - 1 ? (
+                <ArrowRight size={16} weight="bold" />
               ) : (
                 <ArrowUp size={16} weight="bold" />
               )}
@@ -1679,7 +1698,7 @@ function ApprovalCard({ m }: { m: Message }) {
             disabled={busy}
             onClick={() => {
               feel();
-              setSaying(true);
+              setSayingAt(at);
               window.setTimeout(() => sayRef.current?.focus(), 50);
             }}
             className="inline-flex items-center gap-2 px-4 py-3 text-label uppercase text-ink/60 transition-colors duration-press hover:text-ink disabled:opacity-60"

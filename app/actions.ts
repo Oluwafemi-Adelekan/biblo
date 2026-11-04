@@ -400,7 +400,23 @@ async function processScoped(messageId: string) {
     const userName =
       prefs.name?.trim().split(/\s+/)[0] || email?.split("@")[0] || "friend";
 
+    /* Words typed on a card instead of a button. Without the change
+       the question was holding, "yes, workmanship" got filed as a new
+       bare entry and the breakdown they had already given was lost. */
+    const answering = msg.meta?.answering?.length
+      ? `THIS MESSAGE ANSWERS QUESTIONS FROM AN APPROVAL CARD. None of the held changes below has been filed. For each one, file the held change as their reply corrects it: keep every line item, amount, date, time, method and note from the held change unless the reply changes that thing. Do not ask the same question again; ask only if the reply leaves something genuinely open.
+${msg.meta.answering
+          .map(
+            (a, i) =>
+              `${i + 1}. Question: ${a.question}${a.detail ? ` (${a.detail})` : ""}
+   Held change: ${a.held}
+   Their reply: ${a.said}`,
+          )
+          .join("\n")}`
+      : undefined;
+
     const ask = {
+      answering,
       text: carriedNote ? `${msg.text ?? ""}
 
 ${carriedNote}` : msg.text,
@@ -680,14 +696,12 @@ export async function answerApproval(id: string, text: string, answers: Answer[]
   const said = text.trim();
   if (!said) return { ok: false as const, error: "Nothing to send." };
 
-  const steps = stepsOf(msg!);
-  if (steps.some((s, i) => picked(s, answers[i]))) {
-    await settle(msg!, answers, true);
-  } else {
-    await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
-  }
-  const m = await addMessage({ from: "you", text: said, status: "pending" });
-  if (aiConfigured()) after(() => processWithReader(m.id));
+  /* The words answer the question on screen; the ones before it keep
+     their buttons. (The card now walks on after typed words; this is
+     the way in for a card that was open before it did.) */
+  const full: Answer[] = [...answers];
+  full[answers.length] = said;
+  await finish(msg!, full);
   revalidatePath("/", "layout");
   return { ok: true as const };
 }
@@ -703,19 +717,58 @@ export async function resolveApproval(id: string, approved: boolean | Answer[]) 
     return { ok: false as const, error: "That question is no longer open." };
   }
   const steps = stepsOf(msg!);
-  const answers: Answer[] = steps.map((_, i) =>
-    Array.isArray(approved) ? (approved[i] ?? false) : approved,
+  await finish(
+    msg!,
+    steps.map((_, i) => (Array.isArray(approved) ? (approved[i] ?? false) : approved)),
   );
-
-  if (!steps.some((s, i) => picked(s, answers[i]))) {
-    await setMessageMeta(id, { approval: { ...ap, state: "denied", answers } });
-    await addMessage({ from: "ai", text: "Okay, left it alone." });
-    revalidatePath("/", "layout");
-    return { ok: true as const };
-  }
-  await settle(msg!, answers, false);
   revalidatePath("/", "layout");
   return { ok: true as const };
+}
+
+const typedAt = (a: Answer | undefined): a is string => typeof a === "string" && a.trim() !== "";
+
+/** Close a card on its answers: buttons apply now, typed words go to
+ *  the reader as one message from them, each carrying its question
+ *  and the change that question was holding. */
+async function finish(msg: Message, given: Answer[]) {
+  const ap = msg.meta!.approval!;
+  const steps = stepsOf(msg);
+  const answers: Answer[] = steps.map((_, i) => given[i] ?? false);
+  const typed = steps.flatMap((s, i) => {
+    const a = answers[i];
+    return typedAt(a) ? [{ s, said: a.trim() }] : [];
+  });
+
+  if (steps.some((s, i) => picked(s, answers[i]))) {
+    await settle(msg, answers, typed.length > 0);
+  } else {
+    await setMessageMeta(msg.id, {
+      approval: { ...ap, state: typed.length ? "approved" : "denied", answers },
+    });
+    if (!typed.length) await addMessage({ from: "ai", text: "Okay, left it alone." });
+  }
+  if (!typed.length) return;
+
+  const p = ap.proposal as unknown as Held;
+  const answering = typed.map(({ s, said }) => ({
+    question: s.question,
+    detail: s.detail,
+    said,
+    held: JSON.stringify({
+      expenses: s.expenses.map((i) => p.expenses[i]).filter(Boolean),
+      edits: s.edits.map((i) => p.edits[i]).filter(Boolean),
+      deletes: s.deletes.map((i) => p.deletes[i]).filter(Boolean),
+      newCategories: s.newCategories.map((i) => (p.newCategories ?? [])[i]).filter(Boolean),
+      budget: s.budget ? p.budget : undefined,
+    }),
+  }));
+  const m = await addMessage({
+    from: "you",
+    text: typed.map((t) => t.said).join("\n\n"),
+    status: "pending",
+    meta: { answering },
+  });
+  if (aiConfigured()) after(() => processWithReader(m.id));
 }
 
 type Held = {
@@ -748,7 +801,8 @@ async function settle(msg: Message, answers: Answer[], quiet: boolean) {
     ...(p.newCategories ?? []).map((c) => slug(c.name)),
   ]);
   p.expenses = p.expenses.filter((e) => known.has(e.categoryId));
-  const left = steps.filter((s, i) => !picked(s, answers[i])).length;
+  /* Typed answers are not "left alone": the reader takes them next. */
+  const left = steps.filter((s, i) => !picked(s, answers[i]) && !typedAt(answers[i])).length;
   /* A card can sit open while the same money gets filed another way
      (by hand, or from a later message). Approving it then would file
      it twice, so anything already filed since the card was asked -

@@ -164,9 +164,22 @@ export const Message = z.object({
               }),
             )
             .optional(),
-          /** What each step was answered, once it was. */
-          answers: z.array(z.union([z.boolean(), z.number()])).optional(),
+          /** What each step was answered, once it was: an option, or
+           *  the words they typed instead. */
+          answers: z.array(z.union([z.boolean(), z.number(), z.string()])).optional(),
         })
+        .optional(),
+      /** On their own message: the card questions it answers in words,
+       *  each with the change that question was holding. */
+      answering: z
+        .array(
+          z.object({
+            question: z.string(),
+            detail: z.string().optional(),
+            said: z.string(),
+            held: z.string(),
+          }),
+        )
         .optional(),
     })
     .optional(),
